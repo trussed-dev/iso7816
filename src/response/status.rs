@@ -1,3 +1,5 @@
+use core::convert::TryFrom;
+
 impl Default for Status {
     fn default() -> Self {
         Status::Success
@@ -6,6 +8,7 @@ impl Default for Status {
 
 // I0x6985SO/IEC 7816-4, 5.1.3 "Status bytes"
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum Status {
 
 //////////////////////////////
@@ -77,6 +80,46 @@ pub enum Status {
 
     // 6F00: no precise diagnosis
     UnspecifiedCheckingError,
+}
+
+impl TryFrom<(u8, u8)> for Status {
+    type Error = u16;
+    #[inline]
+    fn try_from(sw: (u8, u8)) -> Result<Self, Self::Error> {
+        let (sw1, sw2) = sw;
+        Ok(match u16::from_be_bytes([sw1, sw2]) {
+            0x6300 => Self::VerificationFailed,
+            sw @ 0x63c0..=0x63cf => Self::RemainingRetries((sw as u8) & 0xf),
+
+            0x6400 => Self::UnspecifiedNonpersistentExecutionError,
+            0x6500 => Self::UnspecifiedPersistentExecutionError,
+
+            0x6700 => Self::WrongLength,
+
+            0x6881 => Self::LogicalChannelNotSupported,
+            0x6882 => Self::SecureMessagingNotSupported,
+            0x6884 => Self::CommandChainingNotSupported,
+
+            0x6982 => Self::SecurityStatusNotSatisfied,
+            0x6985 => Self::ConditionsOfUseNotSatisfied,
+            0x6983 => Self::OperationBlocked,
+
+            0x6a80 => Self::IncorrectDataParameter,
+            0x6a81 => Self::FunctionNotSupported,
+            0x6a82 => Self::NotFound,
+            0x6a84 => Self::NotEnoughMemory,
+            0x6a86 => Self::IncorrectP1OrP2Parameter,
+            0x6a88 => Self::KeyReferenceNotFound,
+
+            0x6d00 => Self::InstructionNotSupportedOrInvalid,
+            0x6e00 => Self::ClassNotSupported,
+            0x6f00 => Self::UnspecifiedCheckingError,
+
+            0x9000 => Self::Success,
+            sw @ 0x6100..=0x61FF => Self::MoreAvailable(sw as u8),
+            other => return Err(other),
+        })
+    }
 }
 
 impl Into<u16> for Status {
