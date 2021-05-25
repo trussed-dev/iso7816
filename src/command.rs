@@ -74,7 +74,7 @@ pub enum FromSliceError {
     TooShort,
     InvalidClass,
     InvalidFirstBodyByteForExtended,
-    CanThisReallyOccur,
+    InvalidSliceLength,
 }
 
 impl From<class::InvalidClass> for FromSliceError {
@@ -216,7 +216,11 @@ fn parse_lengths(body: &[u8]) -> Result<ParsedLengths, FromSliceError> {
         return Ok(parsed);
     }
 
-    Err(FromSliceError::CanThisReallyOccur)
+    // If we haven’t returned yet, the slice has an invalid length:  Either the encoded lc value is
+    // wrong, or the lc and le lengths are not encoded properly (one byte per value for simple
+    // APDU, two bytes per value for extended APDU).
+
+    Err(FromSliceError::InvalidSliceLength)
 }
 
 #[cfg(test)]
