@@ -1,20 +1,15 @@
-use heapless_bytes::ArrayLength;
-
-pub mod status;
+mod status;
 pub use status::Status;
 
-pub type Data<T> = crate::Bytes<T>;
+use crate::Data;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Response<SIZE>
-where SIZE: ArrayLength<u8>
-{
-    Data(Data<SIZE>),
+pub enum Response<const S: usize> {
+    Data(Data<S>),
     Status(Status),
 }
 
-impl<SIZE> Default for Response<SIZE>
-where SIZE: ArrayLength<u8> {
+impl<const S: usize> Default for Response<S> {
     fn default() -> Self {
         Self::Status(Default::default())
     }
