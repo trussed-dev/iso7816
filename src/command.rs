@@ -6,7 +6,7 @@ pub mod instruction;
 use crate::Bytes;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Command <SIZE>
+pub struct Command<SIZE>
 where SIZE: ArrayLength<u8>
 {
     class: class::Class,
@@ -23,7 +23,7 @@ where SIZE: ArrayLength<u8>
     pub extended: bool,
 }
 
-impl <SIZE> Command <SIZE>
+impl<SIZE> Command<SIZE>
 where SIZE: ArrayLength<u8>
 {
     pub fn try_from(apdu: &[u8]) -> Result<Self, FromSliceError> {
