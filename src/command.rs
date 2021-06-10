@@ -1,30 +1,29 @@
-use heapless_bytes::ArrayLength;
+use core::convert::TryFrom;
+
+use crate::Data;
 
 pub mod class;
 pub mod instruction;
-
-use crate::Bytes;
+pub use instruction::Instruction;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Command<SIZE>
-where SIZE: ArrayLength<u8>
+pub struct Command<const S: usize>
 {
     class: class::Class,
-    instruction: instruction::Instruction,
+    instruction: Instruction,
 
     pub p1: u8,
     pub p2: u8,
 
     /// The main reason this is modeled as Bytes and not
     /// a fixed array is for serde purposes.
-    data: Bytes<SIZE>,
+    data: Data<S>,
 
     le: usize,
     pub extended: bool,
 }
 
-impl<SIZE> Command<SIZE>
-where SIZE: ArrayLength<u8>
+impl<const S: usize> Command<S>
 {
     pub fn try_from(apdu: &[u8]) -> Result<Self, FromSliceError> {
         use core::convert::TryInto;
@@ -35,15 +34,15 @@ where SIZE: ArrayLength<u8>
         self.class
     }
 
-    pub fn instruction(&self) -> instruction::Instruction {
+    pub fn instruction(&self) -> Instruction {
         self.instruction
     }
 
-    pub fn data(&self) -> &Bytes<SIZE> {
+    pub fn data(&self) -> &Data<S> {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut Bytes<SIZE>{
+    pub fn data_mut(&mut self) -> &mut Data<S> {
         &mut self.data
     }
 
@@ -54,7 +53,7 @@ where SIZE: ArrayLength<u8>
     /// This can be use for APDU chaining to convert
     /// multiple APDU's into one.
     /// * Global Platform GPC_SPE_055 3.10
-    pub fn extend_from_command(&mut self, command: &Command<impl ArrayLength<u8>>) -> core::result::Result<(),()> {
+    pub fn extend_from_command<const T: usize>(&mut self, command: &Command<T>) -> core::result::Result<(), ()> {
 
         // Always take the header from the last command;
         self.class = command.class();
@@ -72,6 +71,7 @@ where SIZE: ArrayLength<u8>
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FromSliceError {
     TooShort,
+    TooLong,
     InvalidClass,
     InvalidFirstBodyByteForExtended,
     InvalidSliceLength,
@@ -83,8 +83,7 @@ impl From<class::InvalidClass> for FromSliceError {
     }
 }
 
-impl<SIZE> core::convert::TryFrom<&[u8]> for Command<SIZE>
-where SIZE: ArrayLength<u8>
+impl<const S: usize> TryFrom<&[u8]> for Command<S>
 {
     type Error = FromSliceError;
     fn try_from(apdu: &[u8]) -> core::result::Result<Self, Self::Error> {
@@ -95,7 +94,7 @@ where SIZE: ArrayLength<u8>
         println!("{}", apdu.len());
         let (header, body) = apdu.split_at(4);
         let class = class::Class::try_from(header[0])?;
-        let instruction = instruction::Instruction::from(header[1]);
+        let instruction = Instruction::from(header[1]);
         let p1 = header[2];
         let p2 = header[3];
         let parsed = parse_lengths(body)?;
@@ -107,7 +106,8 @@ where SIZE: ArrayLength<u8>
             // maximum expected response length
             le: parsed.le,
             // payload
-            data: Bytes::try_from_slice(data_slice).unwrap(),
+            data: Data::from_slice(data_slice)
+                .map_err(|_| Self::Error::TooLong)?,
             extended: parsed.extended,
         })
     }
@@ -248,8 +248,7 @@ mod test {
             0xbe, 0x1e, 0x2c, 0x69, 0x1d, 0xc3, 0x53, 0x4c, 0x89, 0x14, 0xa3, 0x12, 0x30, 0x10, 0x30, 0x0e,
             0x06, 0x03, 0x55, 0x1d,
         ];
-        // let apdu = b"\x10\xdb?\xff\xff\\\x03_\xc1\x05S\x82\x01Zp\x82\x01Q0\x82\x01M0\x81\xf4\xa0\x03\x02\x01\x02\x02\x10\x19\x185\xd2i\xcb\x0b\xf9\xcc\x07)*\xb5QLq0\n\x06\x08*\x86";
 
-        let command = Command::try_from(apdu).unwrap();
+        let command = Command::<256>::try_from(apdu).unwrap();
     }
 }

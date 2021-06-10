@@ -1,6 +1,6 @@
 [package]
 name = "iso7816"
-version = "0.1.0-alpha.0"
+version = "0.1.0-alpha.1"
 authors = ["Nicolas Stalder <n@stalder.io>"]
 edition = "2018"
 repository = "https://github.com/ycrypto/iso7816"
@@ -12,5 +12,7 @@ documentation = "https://docs.rs/iso7816"
 
 [dependencies]
 delog = "0.1.2"
-heapless = "0.6"
-heapless-bytes = "0.2.0"
+heapless = "0.7"
+
+[dev-dependencies]
+hex-literal = "0.3.1"

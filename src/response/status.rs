@@ -1,4 +1,5 @@
 use core::convert::TryFrom;
+use crate::Data;
 
 impl Default for Status {
     fn default() -> Self {
@@ -170,13 +171,12 @@ impl Into<[u8; 2]> for Status {
     }
 }
 
-impl<S> Into<heapless_bytes::Bytes<S>> for Status
-where S: heapless_bytes::ArrayLength<u8>
+impl<const S: usize> Into<Data<S>> for Status
 {
     #[inline]
-    fn into(self) -> heapless_bytes::Bytes<S> {
+    fn into(self) -> Data<S> {
         let arr: [u8; 2] = self.into();
-        heapless_bytes::Bytes::try_from_slice(&arr).unwrap()
+        Data::from_slice(&arr).unwrap()
     }
 }
 
