@@ -12,7 +12,8 @@ documentation = "https://docs.rs/iso7816"
 
 [dependencies]
 delog = "0.1.2"
-heapless = "0.7"
+# use unreleased heapless for https://github.com/japaric/heapless/pull/255
+heapless = { git = "https://github.com/japaric/heapless" }
 
 [dev-dependencies]
 hex-literal = "0.3.1"

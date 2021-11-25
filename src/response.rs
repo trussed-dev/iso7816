@@ -1,15 +1,15 @@
 mod status;
 pub use status::Status;
 
-use crate::Data;
+use crate::somebytes::Bytes;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Response<const S: usize> {
-    Data(Data<S>),
+pub enum Response<B: AsRef<[u8]>> {
+    Data(Bytes<B>),
     Status(Status),
 }
 
-impl<const S: usize> Default for Response<S> {
+impl<B: AsRef<[u8]>> Default for Response<B> {
     fn default() -> Self {
         Self::Status(Default::default())
     }
