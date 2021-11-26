@@ -1,5 +1,4 @@
 use core::convert::TryFrom;
-use crate::Data;
 
 impl Default for Status {
     fn default() -> Self {
@@ -171,12 +170,10 @@ impl Into<[u8; 2]> for Status {
     }
 }
 
-impl<const S: usize> Into<Data<S>> for Status
-{
+impl<const S: usize> Into<heapless::Vec<u8, S>> for Status {
     #[inline]
-    fn into(self) -> Data<S> {
+    fn into(self) -> heapless::Vec<u8, S> {
         let arr: [u8; 2] = self.into();
-        Data::from_slice(&arr).unwrap()
+        heapless::Vec::from_slice(&arr).unwrap()
     }
 }
-

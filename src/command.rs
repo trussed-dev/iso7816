@@ -1,13 +1,13 @@
 use core::convert::TryFrom;
 
-use crate::Data;
+use crate::somebytes::{Bytes, TryExtendFromSlice};
 
 pub mod class;
 pub mod instruction;
 pub use instruction::Instruction;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Command<const S: usize>
+pub struct Command<B: AsRef<[u8]>>
 {
     class: class::Class,
     instruction: Instruction,
@@ -15,21 +15,22 @@ pub struct Command<const S: usize>
     pub p1: u8,
     pub p2: u8,
 
-    /// The main reason this is modeled as Bytes and not
-    /// a fixed array is for serde purposes.
-    data: Data<S>,
+    data: Bytes<B>,
 
     le: usize,
     pub extended: bool,
 }
 
-impl<const S: usize> Command<S>
+impl<'a, B: AsRef<[u8]> + TryFrom<&'a [u8]>> Command<B>
 {
-    pub fn try_from(apdu: &[u8]) -> Result<Self, FromSliceError> {
+    pub fn try_from(apdu: &'a [u8]) -> Result<Self, FromSliceError> {
         use core::convert::TryInto;
         apdu.try_into()
     }
+}
 
+impl<B: AsRef<[u8]>> Command<B>
+{
     pub fn class(&self) -> class::Class {
         self.class
     }
@@ -38,22 +39,24 @@ impl<const S: usize> Command<S>
         self.instruction
     }
 
-    pub fn data(&self) -> &Data<S> {
+    pub fn data(&self) -> &B {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut Data<S> {
+    pub fn data_mut(&mut self) -> &mut B {
         &mut self.data
     }
 
     pub fn expected(&self) -> usize {
         self.le
     }
+}
 
+impl<B: AsRef<[u8]> + TryExtendFromSlice<u8>> Command<B> {
     /// This can be use for APDU chaining to convert
     /// multiple APDU's into one.
     /// * Global Platform GPC_SPE_055 3.10
-    pub fn extend_from_command<const T: usize>(&mut self, command: &Command<T>) -> core::result::Result<(), ()> {
+    pub fn extend_from_command<T: AsRef<[u8]>>(&mut self, command: &Command<T>) -> core::result::Result<(), B::Error> {
 
         // Always take the header from the last command;
         self.class = command.class();
@@ -64,7 +67,7 @@ impl<const S: usize> Command<S>
         self.extended = true;
 
         // add the data to the end.
-        self.data.extend_from_slice(&command.data())
+        self.data.extend_from_slice(command.data().as_ref())
     }
 }
 
@@ -83,10 +86,9 @@ impl From<class::InvalidClass> for FromSliceError {
     }
 }
 
-impl<const S: usize> TryFrom<&[u8]> for Command<S>
-{
+impl<'a, B: AsRef<[u8]> + TryFrom<&'a [u8]>> TryFrom<&'a [u8]> for Command<B> {
     type Error = FromSliceError;
-    fn try_from(apdu: &[u8]) -> core::result::Result<Self, Self::Error> {
+    fn try_from(apdu: &'a [u8]) -> core::result::Result<Self, Self::Error> {
         if apdu.len() < 4 {
             return Err(FromSliceError::TooShort);
         }
@@ -106,8 +108,7 @@ impl<const S: usize> TryFrom<&[u8]> for Command<S>
             // maximum expected response length
             le: parsed.le,
             // payload
-            data: Data::from_slice(data_slice)
-                .map_err(|_| Self::Error::TooLong)?,
+            data: B::try_from(data_slice).map_err(|_| Self::Error::TooLong)?.into(),
             extended: parsed.extended,
         })
     }
@@ -249,6 +250,6 @@ mod test {
             0x06, 0x03, 0x55, 0x1d,
         ];
 
-        let command = Command::<256>::try_from(apdu).unwrap();
+        let command = Command::<heapless::Vec::<u8, 256>>::try_from(apdu).unwrap();
     }
 }
