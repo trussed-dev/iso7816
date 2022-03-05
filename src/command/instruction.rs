@@ -1,3 +1,23 @@
+// #[derive(Copy, Clone, Eq, PartialEq)]
+// pub struct BinaryInstruction(u8);
+// impl fmt::Debug for BinaryInstruction {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.write_fmt(format_args!("'{:X}'", self.0))
+//     }
+// }
+
+// impl From<u8> for BinaryInstruction {
+//     fn from(ins: u8) -> Self {
+//         Self(ins)
+//     }
+// }
+
+// impl From<BinaryInstruction> for u8 {
+//     fn from(ins: BinaryInstruction) -> u8 {
+//         ins.0
+//     }
+// }
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Instruction {
     Select,
@@ -11,12 +31,13 @@ pub enum Instruction {
     GetResponse,
     ReadBinary,
     WriteBinary,
+    // Unknown(BinaryInstruction),
     Unknown(u8),
 }
 
 pub struct UnknownInstruction {}
 
-impl core::convert::From<u8> for Instruction {
+impl From<u8> for Instruction {
     fn from(ins: u8) -> Self {
         match ins {
             0x20 => Instruction::Verify,
@@ -35,9 +56,9 @@ impl core::convert::From<u8> for Instruction {
     }
 }
 
-impl core::convert::Into<u8> for Instruction {
-    fn into(self) -> u8 {
-        match self {
+impl From<Instruction> for u8 {
+    fn from(instruction: Instruction) -> u8 {
+        match instruction {
             Instruction::Verify => 0x20,
             Instruction::ChangeReferenceData => 0x24,
             Instruction::ResetRetryCounter => 0x2c,
@@ -54,7 +75,7 @@ impl core::convert::Into<u8> for Instruction {
     }
 }
 
-// impl core::convert::TryFrom<u8> for Instruction {
+// impl TryFrom<u8> for Instruction {
 //     type Error = UnknownInstruction;
 
 //     fn try_from(ins: u8) -> Result<Self, Self::Error> {

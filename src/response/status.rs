@@ -1,4 +1,3 @@
-use core::convert::TryFrom;
 use crate::Data;
 
 impl Default for Status {
@@ -123,59 +122,60 @@ impl TryFrom<(u8, u8)> for Status {
     }
 }
 
-impl Into<u16> for Status {
+impl From<Status> for u16 {
     #[inline]
-    fn into(self) -> u16 {
-        match self {
-            Self::VerificationFailed => 0x6300,
-            Self::RemainingRetries(x) => {
+    fn from(status: Status) -> u16 {
+        use Status::*;
+        match status {
+            VerificationFailed => 0x6300,
+            RemainingRetries(x) => {
                 assert!(x < 16);
                 u16::from_be_bytes([0x63, 0xc0 + x])
             }
 
-            Self::UnspecifiedNonpersistentExecutionError => 0x6400,
-            Self::UnspecifiedPersistentExecutionError => 0x6500,
+            UnspecifiedNonpersistentExecutionError => 0x6400,
+            UnspecifiedPersistentExecutionError => 0x6500,
 
-            Self::WrongLength => 0x6700,
+            WrongLength => 0x6700,
 
-            Self::LogicalChannelNotSupported => 0x6881,
-            Self::SecureMessagingNotSupported => 0x6882,
-            Self::CommandChainingNotSupported => 0x6884,
+            LogicalChannelNotSupported => 0x6881,
+            SecureMessagingNotSupported => 0x6882,
+            CommandChainingNotSupported => 0x6884,
 
-            Self::SecurityStatusNotSatisfied => 0x6982,
-            Self::ConditionsOfUseNotSatisfied => 0x6985,
-            Self::OperationBlocked => 0x6983,
+            SecurityStatusNotSatisfied => 0x6982,
+            ConditionsOfUseNotSatisfied => 0x6985,
+            OperationBlocked => 0x6983,
 
-            Self::IncorrectDataParameter => 0x6a80,
-            Self::FunctionNotSupported => 0x6a81,
-            Self::NotFound => 0x6a82,
-            Self::NotEnoughMemory => 0x6a84,
-            Self::IncorrectP1OrP2Parameter => 0x6a86,
-            Self::KeyReferenceNotFound => 0x6a88,
+            IncorrectDataParameter => 0x6a80,
+            FunctionNotSupported => 0x6a81,
+            NotFound => 0x6a82,
+            NotEnoughMemory => 0x6a84,
+            IncorrectP1OrP2Parameter => 0x6a86,
+            KeyReferenceNotFound => 0x6a88,
 
-            Self::InstructionNotSupportedOrInvalid => 0x6d00,
-            Self::ClassNotSupported => 0x6e00,
-            Self::UnspecifiedCheckingError => 0x6f00,
+            InstructionNotSupportedOrInvalid => 0x6d00,
+            ClassNotSupported => 0x6e00,
+            UnspecifiedCheckingError => 0x6f00,
 
-            Self::Success => 0x9000,
-            Self::MoreAvailable(x) => u16::from_be_bytes([0x61, x]),
+            Success => 0x9000,
+            MoreAvailable(x) => u16::from_be_bytes([0x61, x]),
         }
     }
 }
 
-impl Into<[u8; 2]> for Status {
+impl From<Status> for [u8; 2] {
     #[inline]
-    fn into(self) -> [u8; 2] {
-        let sw: u16 = self.into();
+    fn from(status: Status) -> [u8; 2] {
+        let sw: u16 = status.into();
         sw.to_be_bytes()
     }
 }
 
-impl<const S: usize> Into<Data<S>> for Status
+impl<const S: usize> From<Status> for Data<S>
 {
     #[inline]
-    fn into(self) -> Data<S> {
-        let arr: [u8; 2] = self.into();
+    fn from(status: Status) -> Data<S> {
+        let arr: [u8; 2] = status.into();
         Data::from_slice(&arr).unwrap()
     }
 }

@@ -133,31 +133,19 @@ impl Aid {
     pub const fn is_international(&self) -> bool {
         // This is not "const" yet.
         // self.category() == Category::International
-        match self.category() {
-            Category::International => true,
-            _ => false,
-        }
+        matches!(self.category(), Category::International)
     }
 
     pub const fn is_national(&self) -> bool {
-        match self.category() {
-            Category::National => true,
-            _ => false,
-        }
+        matches!(self.category(), Category::National)
     }
 
     pub const fn is_standard(&self) -> bool {
-        match self.category() {
-            Category::Standard => true,
-            _ => false,
-        }
+        matches!(self.category(), Category::Standard)
     }
 
     pub const fn is_proprietary(&self) -> bool {
-        match self.category() {
-            Category::Proprietary => true,
-            _ => false,
-        }
+        matches!(self.category(), Category::Proprietary)
     }
 
     const fn has_rid_pix(&self) -> bool {

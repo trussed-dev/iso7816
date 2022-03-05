@@ -1,5 +1,3 @@
-use core::convert::TryFrom;
-
 use crate::Data;
 
 pub mod class;
@@ -23,10 +21,62 @@ pub struct Command<const S: usize>
     pub extended: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+/// Memory-efficient unowned version of [`Command`]
+pub struct CommandView<'a>
+{
+    class: class::Class,
+    instruction: Instruction,
+
+    pub p1: u8,
+    pub p2: u8,
+
+    data: &'a [u8],
+
+    le: usize,
+    pub extended: bool,
+}
+
+// impl<const S: usize> core::borrow::Borrow<CommandView<'a> + 'a> for Command<S> {
+//     fn borrow(&self) -> &CommandView<'a> {
+//         &CommandView {
+//             class: self.class,
+//             instruction: self.instruction,
+//             p1: self.p1,
+//             p2: self.p2,
+//             data: self.data.as_slice(),
+//             le: self.le,
+//             extended: self.extended,
+//         }
+//     }
+// }
+
+// can't implement ToOwned, as
+// a) our conversion is fallible
+// b) our conversion has variable target size
+// impl<'a, S: const usize> ToOwned for CommandView<'a>
+
+impl<'a> CommandView<'a> {
+    pub fn class(&self) -> class::Class {
+        self.class
+    }
+
+    pub fn instruction(&self) -> Instruction {
+        self.instruction
+    }
+
+    pub fn data(&self) -> &[u8] {
+        self.data
+    }
+
+    pub fn expected(&self) -> usize {
+        self.le
+    }
+}
+
 impl<const S: usize> Command<S>
 {
     pub fn try_from(apdu: &[u8]) -> Result<Self, FromSliceError> {
-        use core::convert::TryInto;
         apdu.try_into()
     }
 
@@ -53,6 +103,7 @@ impl<const S: usize> Command<S>
     /// This can be use for APDU chaining to convert
     /// multiple APDU's into one.
     /// * Global Platform GPC_SPE_055 3.10
+    #[allow(clippy::result_unit_err)]
     pub fn extend_from_command<const T: usize>(&mut self, command: &Command<T>) -> core::result::Result<(), ()> {
 
         // Always take the header from the last command;
@@ -64,7 +115,7 @@ impl<const S: usize> Command<S>
         self.extended = true;
 
         // add the data to the end.
-        self.data.extend_from_slice(&command.data())
+        self.data.extend_from_slice(command.data())
     }
 }
 
@@ -83,10 +134,10 @@ impl From<class::InvalidClass> for FromSliceError {
     }
 }
 
-impl<const S: usize> TryFrom<&[u8]> for Command<S>
+impl<'a> TryFrom<&'a[u8]> for CommandView<'a>
 {
     type Error = FromSliceError;
-    fn try_from(apdu: &[u8]) -> core::result::Result<Self, Self::Error> {
+    fn try_from(apdu: &'a[u8]) -> core::result::Result<Self, Self::Error> {
         if apdu.len() < 4 {
             return Err(FromSliceError::TooShort);
         }
@@ -98,7 +149,7 @@ impl<const S: usize> TryFrom<&[u8]> for Command<S>
         let p1 = header[2];
         let p2 = header[3];
         let parsed = parse_lengths(body)?;
-        let data_slice = &body[parsed.offset..][..parsed.lc];
+        let data = &body[parsed.offset..][..parsed.lc];
 
         Ok(Self {
             // header
@@ -106,10 +157,33 @@ impl<const S: usize> TryFrom<&[u8]> for Command<S>
             // maximum expected response length
             le: parsed.le,
             // payload
-            data: Data::from_slice(data_slice)
-                .map_err(|_| Self::Error::TooLong)?,
+            data,
             extended: parsed.extended,
         })
+    }
+}
+
+impl<'a> CommandView<'a> {
+    pub fn to_owned<const S: usize>(&self) -> Result<Command<S>, FromSliceError> {
+        let &CommandView { class, instruction, p1, p2, le, data, extended } = self;
+        Ok(Command {
+            // header
+            class, instruction, p1, p2,
+            // maximum expected response length
+            le,
+            // payload
+            data: Data::from_slice(data).map_err(|_| FromSliceError::TooLong)?,
+            extended,
+        })
+    }
+}
+
+impl<const S: usize> TryFrom<&[u8]> for Command<S>
+{
+    type Error = FromSliceError;
+    fn try_from(apdu: &[u8]) -> core::result::Result<Self, Self::Error> {
+        let view: CommandView = apdu.try_into()?;
+        view.to_owned()
     }
 }
 

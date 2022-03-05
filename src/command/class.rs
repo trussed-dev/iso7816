@@ -102,7 +102,7 @@ impl Class {
                 self.cla & 0b11
             }
             Range::Interindustry(Interindustry::Further) => {
-                4 + self.cla & 0b111
+                (4 + self.cla) & 0b111
             }
             _ => return None
         })
@@ -111,7 +111,7 @@ impl Class {
 
 }
 
-impl core::convert::TryFrom<u8> for Class {
+impl TryFrom<u8> for Class {
     type Error = InvalidClass;
 
     #[inline]
@@ -144,7 +144,7 @@ pub enum Interindustry {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct InvalidClass {}
 
-impl core::convert::TryFrom<u8> for Range {
+impl TryFrom<u8> for Range {
     type Error = InvalidClass;
 
     #[inline]
