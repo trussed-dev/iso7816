@@ -11,7 +11,7 @@ pub enum Interface {
 }
 
 pub type Data<const S: usize> = heapless::Vec<u8, S>;
-pub type Result<T=()> = core::result::Result<T, Status>;
+pub type Result<T = ()> = core::result::Result<T, Status>;
 
 pub mod aid;
 pub mod command;

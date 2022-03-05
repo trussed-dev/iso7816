@@ -65,23 +65,19 @@ impl Class {
     pub fn secure_messaging(&self) -> SecureMessaging {
         match self.range {
             Range::Interindustry(which) => match which {
-                Interindustry::First => {
-                    match (self.cla >> 2) & 0b11 {
-                        0b00 => SecureMessaging::None,
-                        0b01 => SecureMessaging::Proprietary,
-                        0b10 => SecureMessaging::Standard,
-                        0b11 => SecureMessaging::Authenticated,
-                        _ => unreachable!(),
-                    }
+                Interindustry::First => match (self.cla >> 2) & 0b11 {
+                    0b00 => SecureMessaging::None,
+                    0b01 => SecureMessaging::Proprietary,
+                    0b10 => SecureMessaging::Standard,
+                    0b11 => SecureMessaging::Authenticated,
+                    _ => unreachable!(),
                 },
-                Interindustry::Further => {
-                    match (self.cla >> 5)  != 0 {
-                        true => SecureMessaging::Standard,
-                        false => SecureMessaging::None,
-                    }
-                }
+                Interindustry::Further => match (self.cla >> 5) != 0 {
+                    true => SecureMessaging::Standard,
+                    false => SecureMessaging::None,
+                },
                 Interindustry::Reserved => SecureMessaging::Unknown,
-            }
+            },
             _ => SecureMessaging::Unknown,
         }
     }
@@ -98,17 +94,11 @@ impl Class {
     #[inline]
     pub fn channel(&self) -> Option<u8> {
         Some(match self.range() {
-            Range::Interindustry(Interindustry::First) => {
-                self.cla & 0b11
-            }
-            Range::Interindustry(Interindustry::Further) => {
-                (4 + self.cla) & 0b111
-            }
-            _ => return None
+            Range::Interindustry(Interindustry::First) => self.cla & 0b11,
+            Range::Interindustry(Interindustry::Further) => (4 + self.cla) & 0b111,
+            _ => return None,
         })
     }
-
-
 }
 
 impl TryFrom<u8> for Class {
@@ -150,7 +140,7 @@ impl TryFrom<u8> for Range {
     #[inline]
     fn try_from(cla: u8) -> Result<Self, Self::Error> {
         if cla == 0xff {
-            return Err(InvalidClass {})
+            return Err(InvalidClass {});
         }
 
         let range = match cla >> 5 {

@@ -10,20 +10,18 @@ impl Default for Status {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Status {
-
-//////////////////////////////
-// Normal processing (90, 61)
-//////////////////////////////
-
+    //////////////////////////////
+    // Normal processing (90, 61)
+    //////////////////////////////
     /// 9000
     Success,
 
     /// 61XX
     MoreAvailable(u8),
 
-///////////////////////////////
-// Warning processing (62, 63)
-///////////////////////////////
+    ///////////////////////////////
+    // Warning processing (62, 63)
+    ///////////////////////////////
 
     // 62XX: state of non-volatile memory unchanged (cf. SW2)
 
@@ -31,9 +29,9 @@ pub enum Status {
     VerificationFailed,
     RemainingRetries(u8),
 
-////////////////////////////////
-// Execution error (64, 65, 66)
-////////////////////////////////
+    ////////////////////////////////
+    // Execution error (64, 65, 66)
+    ////////////////////////////////
 
     // 64XX: persistent memory unchanged (cf. SW2)
     UnspecifiedNonpersistentExecutionError,
@@ -43,9 +41,9 @@ pub enum Status {
 
     // 66XX: security related issues
 
-///////////////////////////////
-// Checking error (67 - 6F)
-///////////////////////////////
+    ///////////////////////////////
+    // Checking error (67 - 6F)
+    ///////////////////////////////
 
     // 6700: wrong length, no further indication
     WrongLength,
@@ -171,12 +169,10 @@ impl From<Status> for [u8; 2] {
     }
 }
 
-impl<const S: usize> From<Status> for Data<S>
-{
+impl<const S: usize> From<Status> for Data<S> {
     #[inline]
     fn from(status: Status) -> Data<S> {
         let arr: [u8; 2] = status.into();
         Data::from_slice(&arr).unwrap()
     }
 }
-

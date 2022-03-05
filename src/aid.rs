@@ -39,18 +39,22 @@ pub enum Category {
 }
 
 impl core::fmt::Debug for Aid {
-  fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-      if self.len <= self.truncated_len {
-          f.write_fmt(format_args!("'{} {}'",
-              hexstr!(&self.bytes[..5]),
-              hexstr!(&self.bytes[5..self.len as _])))
-      } else {
-          f.write_fmt(format_args!("'{} {} {}'",
-              hexstr!(&self.bytes[..5]),
-              hexstr!(&self.bytes[5..self.truncated_len as _]),
-              hexstr!(&self.bytes[self.truncated_len as _..self.len as _])))
-      }
-  }
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.len <= self.truncated_len {
+            f.write_fmt(format_args!(
+                "'{} {}'",
+                hexstr!(&self.bytes[..5]),
+                hexstr!(&self.bytes[5..self.len as _])
+            ))
+        } else {
+            f.write_fmt(format_args!(
+                "'{} {} {}'",
+                hexstr!(&self.bytes[..5]),
+                hexstr!(&self.bytes[5..self.truncated_len as _]),
+                hexstr!(&self.bytes[self.truncated_len as _..self.len as _])
+            ))
+        }
+    }
 }
 
 /// According to ISO 7816-4, "Application selection using AID as DF name":
@@ -66,9 +70,9 @@ impl core::fmt::Debug for Aid {
 pub trait App {
     // using an associated constant here would make the trait object unsafe
     fn aid(&self) -> Aid;
-//    fn select_via_aid(&mut self, interface: Interface, aid: Aid) -> Result<()>;
-//    fn deselect(&mut self) -> Result<()>;
-//    fn call(&mut self, interface: Interface, command: &Command<C>, response: &mut Response<R>) -> Result<()>;
+    //    fn select_via_aid(&mut self, interface: Interface, aid: Aid) -> Result<()>;
+    //    fn deselect(&mut self) -> Result<()>;
+    //    fn call(&mut self, interface: Interface, command: &Command<C>, response: &mut Response<R>) -> Result<()>;
 }
 
 impl core::ops::Deref for Aid {
@@ -102,10 +106,20 @@ impl Aid {
         const_assert!(!aid.is_empty(), "AID needs at least a category identifier");
         const_assert!(aid.len() <= Self::MAX_LEN, "AID too long");
         const_assert!(truncated_len <= aid.len(), "truncated length too long");
-        let mut s = Self { bytes: [0u8; Self::MAX_LEN], len: aid.len() as u8, truncated_len: truncated_len as u8 };
+        let mut s = Self {
+            bytes: [0u8; Self::MAX_LEN],
+            len: aid.len() as u8,
+            truncated_len: truncated_len as u8,
+        };
         s = s.fill(aid, 0);
-        const_assert!(!s.is_national() || aid.len() >= 5, "National RID must have length 5");
-        const_assert!(!s.is_international() || aid.len() >= 5, "International RID must have length 5");
+        const_assert!(
+            !s.is_national() || aid.len() >= 5,
+            "National RID must have length 5"
+        );
+        const_assert!(
+            !s.is_international() || aid.len() >= 5,
+            "International RID must have length 5"
+        );
         s
     }
 
@@ -162,7 +176,6 @@ impl Aid {
     pub fn pix(&self) -> Option<&[u8]> {
         self.has_rid_pix().then(|| &self.bytes[5..])
     }
-
 }
 
 #[cfg(test)]
