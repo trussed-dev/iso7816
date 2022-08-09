@@ -261,7 +261,7 @@ fn parse_lengths(body: &[u8]) -> Result<ParsedLengths, FromSliceError> {
         // B1 encodes Lc valued from 1 to 255
         // Bl encodes Le from 1 to 256
         parsed.lc = b1;
-        parsed.le = replace_zero(body[l - 1] as usize + 1, 256);
+        parsed.le = replace_zero(body[l - 1] as usize, 256);
         parsed.offset = 1;
         return Ok(parsed);
     }
@@ -309,6 +309,15 @@ fn parse_lengths(body: &[u8]) -> Result<ParsedLengths, FromSliceError> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn lengths_4s() {
+        let data = &[0x02, 0xB6, 0x00, 0x00];
+        let lengths = parse_lengths(data).expect("failed to parse lengths");
+        assert_eq!(lengths.lc, 2);
+        assert_eq!(lengths.le, 256);
+        assert_eq!(lengths.offset, 1);
+    }
 
     #[test]
     fn command_chaining() {
