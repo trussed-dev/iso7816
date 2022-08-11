@@ -271,7 +271,9 @@ fn parse_lengths(body: &[u8]) -> Result<ParsedLengths, FromSliceError> {
     // only extended cases left now
     if b1 != 0 {
         return Err(FromSliceError::InvalidFirstBodyByteForExtended);
-    };
+    } else if l < 3 {
+        return Err(FromSliceError::InvalidSliceLength);
+    }
 
     // Case 2E (no data)
     if l == 3 && b1 == 0 {
@@ -309,6 +311,7 @@ fn parse_lengths(body: &[u8]) -> Result<ParsedLengths, FromSliceError> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use hex_literal::hex;
 
     #[test]
     fn lengths_4s() {
@@ -344,5 +347,13 @@ mod test {
         ];
 
         let _command = Command::<256>::try_from(apdu).unwrap();
+    }
+
+    #[test]
+    fn lc_oob() {
+        let apdu = &hex!("00C00000 00FF");
+        let _ = Command::<256>::try_from(apdu);
+        let apdu = &hex!("00C00000 0000");
+        let _ = Command::<256>::try_from(apdu);
     }
 }
