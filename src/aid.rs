@@ -1,12 +1,26 @@
 // use crate::{Command, Interface, Response, Result};
 
-/// Constant panicking assertion.
-// TODO(tarcieri): use const panic when stable.
-// See: https://github.com/rust-lang/rust/issues/51999
-macro_rules! const_assert {
-    ($bool:expr, $msg:expr) => {
-        [$msg][!$bool as usize]
-    };
+/// Error returned when the [Aid::try_new](Aid::try_new) or
+/// [Aid::try_new_truncatable](Aid::try_new_truncatable) fail
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FromSliceError {
+    Empty,
+    TooLong,
+    TruncatedLengthLargerThanLength,
+    NationalRidTooShort,
+    InternationalRidTooShort,
+}
+
+impl core::fmt::Debug for FromSliceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Empty => "AID needs at least a category identifier",
+            Self::TooLong => "AID too long",
+            Self::TruncatedLengthLargerThanLength => "truncated length too long",
+            Self::NationalRidTooShort => "National RID must have length 5",
+            Self::InternationalRidTooShort => "International RID must have length 5",
+        })
+    }
 }
 
 #[derive(Copy, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -97,30 +111,61 @@ impl Aid {
         aid.starts_with(self.truncated())
     }
 
+    /// Create an Aid
+    ///
+    /// This method panics if the given aid is invalid. For a similar method returning a result
+    /// instead, use [try_new](Aid::try_new)
     pub const fn new(aid: &[u8]) -> Self {
         Self::new_truncatable(aid, aid.len())
     }
 
-    // pub fn try_new(aid: &[u8], truncated_len: u8) -> Result<Self, ()> {
+    /// Create an Aid that can be trucated in select commands
+    ///
+    /// This method panics if the given aid is invalid. For a similar method returning a result
+    /// instead, use [try_new_truncatable](Aid::try_new_truncatable)
     pub const fn new_truncatable(aid: &[u8], truncated_len: usize) -> Self {
-        const_assert!(!aid.is_empty(), "AID needs at least a category identifier");
-        const_assert!(aid.len() <= Self::MAX_LEN, "AID too long");
-        const_assert!(truncated_len <= aid.len(), "truncated length too long");
+        match Self::try_new_truncatable(aid, truncated_len) {
+            Ok(s) => s,
+            Err(e) => {
+                // TODO(tarcieri): use const panic when stable.
+                // See: https://github.com/rust-lang/rust/issues/51999
+                #[allow(unconditional_panic)]
+                [e][1];
+                loop {}
+            }
+        }
+    }
+
+    /// Create an Aid
+    pub const fn try_new(aid: &[u8]) -> Result<Self, FromSliceError> {
+        Self::try_new_truncatable(aid, aid.len())
+    }
+
+    /// Create an Aid that can be trucated in select commands
+    pub const fn try_new_truncatable(
+        aid: &[u8],
+        truncated_len: usize,
+    ) -> Result<Self, FromSliceError> {
+        if aid.is_empty() {
+            return Err(FromSliceError::Empty);
+        } else if aid.len() > Self::MAX_LEN {
+            return Err(FromSliceError::TooLong);
+        } else if truncated_len > aid.len() {
+            return Err(FromSliceError::TruncatedLengthLargerThanLength);
+        }
         let mut s = Self {
             bytes: [0u8; Self::MAX_LEN],
             len: aid.len() as u8,
             truncated_len: truncated_len as u8,
         };
         s = s.fill(aid, 0);
-        const_assert!(
-            !s.is_national() || aid.len() >= 5,
-            "National RID must have length 5"
-        );
-        const_assert!(
-            !s.is_international() || aid.len() >= 5,
-            "International RID must have length 5"
-        );
-        s
+        if s.is_national() && aid.len() >= 5 {
+            return Err(FromSliceError::NationalRidTooShort);
+        }
+        if s.is_international() && aid.len() >= 5 {
+            return Err(FromSliceError::InternationalRidTooShort);
+        }
+        Ok(s)
     }
 
     // workaround to copy in the aid while remaining "const"
