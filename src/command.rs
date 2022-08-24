@@ -312,6 +312,68 @@ fn parse_lengths(body: &[u8]) -> Result<ParsedLengths, FromSliceError> {
 mod test {
     use super::*;
     use hex_literal::hex;
+    use quickcheck_macros::quickcheck;
+
+    #[quickcheck]
+    fn parse_no_panic(data: Vec<u8>) {
+        let _ = parse_lengths(&data);
+    }
+
+    #[quickcheck]
+    fn lengths(lc: u16, le: Option<u16>) {
+        let extended =
+            lc > u16::from(u8::MAX) || le.map(|val| val > u16::from(u8::MAX)).unwrap_or_default();
+        let nc = usize::from(lc);
+        let ne = le
+            .map(usize::from)
+            .map(|val| {
+                if val == 0 {
+                    (if extended {
+                        usize::from(u16::MAX)
+                    } else {
+                        usize::from(u8::MAX)
+                    }) + 1
+                } else {
+                    val
+                }
+            })
+            .unwrap_or_default();
+
+        let mut data = Vec::new();
+        let mut offset = 0;
+
+        if lc > 0 {
+            if extended {
+                data.push(0);
+                data.extend_from_slice(&lc.to_be_bytes());
+                offset = 3;
+            } else {
+                data.push(lc as u8);
+                offset = 1;
+            }
+        }
+
+        for _ in 0..nc {
+            data.push(0);
+        }
+
+        if let Some(le) = le {
+            if extended {
+                if lc == 0 {
+                    data.push(0);
+                }
+                data.extend_from_slice(&le.to_be_bytes());
+            } else {
+                data.push(le as u8);
+            }
+        }
+
+        let lengths = parse_lengths(&data).expect("failed to parse lengths");
+        assert_eq!(extended, lengths.extended);
+        assert_eq!(offset, lengths.offset);
+        assert_eq!(nc, lengths.lc);
+        assert_eq!(ne, lengths.le);
+    }
 
     #[test]
     fn lengths_4s() {
