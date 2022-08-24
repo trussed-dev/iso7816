@@ -16,3 +16,5 @@ heapless = "0.7"
 
 [dev-dependencies]
 hex-literal = "0.3.1"
+quickcheck = "1.0.3"
+quickcheck_macros = "1.0.0"
