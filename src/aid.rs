@@ -126,12 +126,8 @@ impl Aid {
     pub const fn new_truncatable(aid: &[u8], truncated_len: usize) -> Self {
         match Self::try_new_truncatable(aid, truncated_len) {
             Ok(s) => s,
-            Err(e) => {
-                // TODO(tarcieri): use const panic when stable.
-                // See: https://github.com/rust-lang/rust/issues/51999
-                #[allow(unconditional_panic)]
-                [e][1];
-                loop {}
+            Err(_e) => {
+                panic!("Invalid aid")
             }
         }
     }
