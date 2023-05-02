@@ -20,7 +20,7 @@ pub struct Command<const S: usize> {
     pub extended: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Memory-efficient unowned version of [`Command`]
 pub struct CommandView<'a> {
     class: class::Class,
@@ -97,6 +97,18 @@ impl<const S: usize> Command<S> {
         self.le
     }
 
+    pub fn as_view(&self) -> CommandView {
+        CommandView {
+            class: self.class,
+            instruction: self.instruction,
+            p1: self.p1,
+            p2: self.p2,
+            data: self.data(),
+            le: self.le,
+            extended: self.extended,
+        }
+    }
+
     /// This can be use for APDU chaining to convert
     /// multiple APDU's into one.
     /// * Global Platform GPC_SPE_055 3.10
@@ -104,6 +116,17 @@ impl<const S: usize> Command<S> {
     pub fn extend_from_command<const T: usize>(
         &mut self,
         command: &Command<T>,
+    ) -> core::result::Result<(), ()> {
+        self.extend_from_command_view(command.as_view())
+    }
+
+    /// This can be use for APDU chaining to convert
+    /// multiple APDU's into one.
+    /// * Global Platform GPC_SPE_055 3.10
+    #[allow(clippy::result_unit_err)]
+    pub fn extend_from_command_view(
+        &mut self,
+        command: CommandView,
     ) -> core::result::Result<(), ()> {
         // Always take the header from the last command;
         self.class = command.class();
