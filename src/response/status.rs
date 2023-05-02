@@ -24,6 +24,7 @@ pub enum Status {
     ///////////////////////////////
 
     // 62XX: state of non-volatile memory unchanged (cf. SW2)
+    SelectedFileInTerminationState,
 
     // 63XX: state of non-volatile memory changed (cf. SW2)
     VerificationFailed,
@@ -86,6 +87,8 @@ impl TryFrom<(u8, u8)> for Status {
     fn try_from(sw: (u8, u8)) -> Result<Self, Self::Error> {
         let (sw1, sw2) = sw;
         Ok(match u16::from_be_bytes([sw1, sw2]) {
+            0x6285 => Self::SelectedFileInTerminationState,
+
             0x6300 => Self::VerificationFailed,
             sw @ 0x63c0..=0x63cf => Self::RemainingRetries((sw as u8) & 0xf),
 
@@ -125,6 +128,7 @@ impl From<Status> for u16 {
     fn from(status: Status) -> u16 {
         use Status::*;
         match status {
+            SelectedFileInTerminationState => 0x6285,
             VerificationFailed => 0x6300,
             RemainingRetries(x) => {
                 assert!(x < 16);
