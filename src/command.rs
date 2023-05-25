@@ -70,6 +70,12 @@ impl<const S: usize> Command<S> {
         apdu.try_into()
     }
 
+    /// Prevent creation of APDU with data larger than u16::MAX, as they cannot be encoded
+    /// ```compile_fail
+    /// let _= iso7816::Command::<65536>::try_from(b"etiuan".as_slice());
+    /// ```
+    const COMPILE_ERROR_LEN: () = assert!(S < u16::MAX as usize);
+
     pub fn class(&self) -> class::Class {
         self.class
     }
@@ -203,6 +209,7 @@ impl<'a> CommandView<'a> {
             data,
             extended,
         } = self;
+        let _ = Command::<S>::COMPILE_ERROR_LEN;
         Ok(Command {
             // header
             class,
@@ -221,6 +228,7 @@ impl<'a> CommandView<'a> {
 impl<const S: usize> TryFrom<&[u8]> for Command<S> {
     type Error = FromSliceError;
     fn try_from(apdu: &[u8]) -> core::result::Result<Self, Self::Error> {
+        let _ = Self::COMPILE_ERROR_LEN;
         let view: CommandView = apdu.try_into()?;
         view.to_owned()
     }
