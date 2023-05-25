@@ -1,182 +1,355 @@
-use crate::Data;
+use core::fmt::{Debug, Display};
+
+#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+pub struct Status(pub u16);
 
 impl Default for Status {
     fn default() -> Self {
-        Status::Success
+        Self::SUCCESS
     }
 }
 
-// I0x6985SO/IEC 7816-4, 5.1.3 "Status bytes"
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum Status {
-    //////////////////////////////
-    // Normal processing (90, 61)
-    //////////////////////////////
-    /// 9000
-    Success,
+impl Debug for Status {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::SUCCESS => f.write_str("SUCCESS"),
 
-    /// 61XX
-    MoreAvailable(u8),
+            Self::DATA_UNCHANGED_WARNING => f.write_str("DATA_UNCHANGED_WARNING"),
+            Self::CORRUPTED_DATA => f.write_str("CORRUPTED_DATA"),
+            Self::UNEXPECTED_EOF => f.write_str("UNEXPECTED_EOF"),
+            Self::SELECT_FILE_DEACTIVATED => f.write_str("SELECT_FILE_DEACTIVATED"),
+            Self::FILE_CONTROL_INFO_BADLY_FORMATTED => {
+                f.write_str("FILE_CONTROL_INFO_BADLY_FORMATTED")
+            }
+            Self::SELECT_FILE_IN_TERMINATION_STATE => {
+                f.write_str("SELECT_FILE_IN_TERMINATION_STATE")
+            }
+            Self::NO_INPUT_DATA_FROM_SENSOR => f.write_str("NO_INPUT_DATA_FROM_SENSOR"),
 
-    ///////////////////////////////
-    // Warning processing (62, 63)
-    ///////////////////////////////
+            Self::DATA_CHANGED_WARNING => f.write_str("DATA_CHANGED_WARNING"),
+            Self::FILLED_BY_LAST_WRITE => f.write_str("FILLED_BY_LAST_WRITE"),
 
-    // 62XX: state of non-volatile memory unchanged (cf. SW2)
-    SelectedFileInTerminationState,
+            Self::DATA_CHANGED_ERROR => f.write_str("DATA_CHANGED_ERROR"),
+            Self::MEMORY_FAILURE => f.write_str("MEMORY_FAILURE"),
 
-    // 63XX: state of non-volatile memory changed (cf. SW2)
-    VerificationFailed,
-    RemainingRetries(u8),
+            Self::CLA_NOT_SUPPORTED => f.write_str("CLA_NOT_SUPPORTED"),
+            Self::LOGICAL_CHANNEL_NOT_SUPPORTED => f.write_str("LOGICAL_CHANNEL_NOT_SUPPORTED"),
+            Self::SECURE_MESSAGING_NOT_SUPPORTED => f.write_str("SECURE_MESSAGING_NOT_SUPPORTED"),
+            Self::LAST_COMMANND_OF_CHAIN_EXPECTED => f.write_str("LAST_COMMANND_OF_CHAIN_EXPECTED"),
+            Self::COMMAND_CHAINING_NOT_SUPPORTED => f.write_str("COMMAND_CHAINING_NOT_SUPPORTED"),
 
-    ////////////////////////////////
-    // Execution error (64, 65, 66)
-    ////////////////////////////////
-
-    // 64XX: persistent memory unchanged (cf. SW2)
-    UnspecifiedNonpersistentExecutionError,
-
-    // 65XX: persistent memory changed (cf. SW2)
-    UnspecifiedPersistentExecutionError,
-
-    // 66XX: security related issues
-
-    ///////////////////////////////
-    // Checking error (67 - 6F)
-    ///////////////////////////////
-
-    // 6700: wrong length, no further indication
-    WrongLength,
-
-    // 68XX: functions in CLA not supported (cf. SW2)
-    LogicalChannelNotSupported,
-    SecureMessagingNotSupported,
-    CommandChainingNotSupported,
-
-    // 69xx: command not allowed (cf. SW2)
-    SecurityStatusNotSatisfied,
-    ConditionsOfUseNotSatisfied,
-    OperationBlocked,
-
-    // 6Axx: wrong parameters P1-P2 (cf. SW2)
-    IncorrectDataParameter,
-    FunctionNotSupported,
-    NotFound,
-    NotEnoughMemory,
-    IncorrectP1OrP2Parameter,
-    KeyReferenceNotFound,
-
-    // 6BXX: wrong parameters P1-P2
-
-    // 6CXX: wrong Le field, SW2 encodes available bytes
-
-    // 6D00: instruction code not supported or invalid
-    InstructionNotSupportedOrInvalid,
-
-    // 6E00: class not supported
-    ClassNotSupported,
-
-    // 6F00: no precise diagnosis
-    UnspecifiedCheckingError,
-}
-
-impl TryFrom<(u8, u8)> for Status {
-    type Error = u16;
-    #[inline]
-    fn try_from(sw: (u8, u8)) -> Result<Self, Self::Error> {
-        let (sw1, sw2) = sw;
-        Ok(match u16::from_be_bytes([sw1, sw2]) {
-            0x6285 => Self::SelectedFileInTerminationState,
-
-            0x6300 => Self::VerificationFailed,
-            sw @ 0x63c0..=0x63cf => Self::RemainingRetries((sw as u8) & 0xf),
-
-            0x6400 => Self::UnspecifiedNonpersistentExecutionError,
-            0x6500 => Self::UnspecifiedPersistentExecutionError,
-
-            0x6700 => Self::WrongLength,
-
-            0x6881 => Self::LogicalChannelNotSupported,
-            0x6882 => Self::SecureMessagingNotSupported,
-            0x6884 => Self::CommandChainingNotSupported,
-
-            0x6982 => Self::SecurityStatusNotSatisfied,
-            0x6985 => Self::ConditionsOfUseNotSatisfied,
-            0x6983 => Self::OperationBlocked,
-
-            0x6a80 => Self::IncorrectDataParameter,
-            0x6a81 => Self::FunctionNotSupported,
-            0x6a82 => Self::NotFound,
-            0x6a84 => Self::NotEnoughMemory,
-            0x6a86 => Self::IncorrectP1OrP2Parameter,
-            0x6a88 => Self::KeyReferenceNotFound,
-
-            0x6d00 => Self::InstructionNotSupportedOrInvalid,
-            0x6e00 => Self::ClassNotSupported,
-            0x6f00 => Self::UnspecifiedCheckingError,
-
-            0x9000 => Self::Success,
-            sw @ 0x6100..=0x61FF => Self::MoreAvailable(sw as u8),
-            other => return Err(other),
-        })
-    }
-}
-
-impl From<Status> for u16 {
-    #[inline]
-    fn from(status: Status) -> u16 {
-        use Status::*;
-        match status {
-            SelectedFileInTerminationState => 0x6285,
-            VerificationFailed => 0x6300,
-            RemainingRetries(x) => {
-                assert!(x < 16);
-                u16::from_be_bytes([0x63, 0xc0 + x])
+            Self::COMMAND_NOT_ALLOWED => f.write_str("COMMAND_NOT_ALLOWED"),
+            Self::COMMAND_INCOMPATIBLE_FILE_STRUCTURE => {
+                f.write_str("COMMAND_INCOMPATIBLE_FILE_STRUCTURE")
+            }
+            Self::SECURITY_STATUS_NOT_SATISFIED => f.write_str("SECURITY_STATUS_NOT_SATISFIED"),
+            Self::AUTHENTICATION_METHOD_BLOCKED => f.write_str("AUTHENTICATION_METHOD_BLOCKED"),
+            Self::REFERENCE_DATA_NOT_USABLE => f.write_str("REFERENCE_DATA_NOT_USABLE"),
+            Self::CONDITION_OF_USE_NOT_SATISFIED => f.write_str("CONDITION_OF_USE_NOT_SATISFIED"),
+            Self::COMMAND_NOT_ALLOWED_NO_EF => f.write_str("COMMAND_NOT_ALLOWED_NO_EF"),
+            Self::EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING => {
+                f.write_str("EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING")
+            }
+            Self::INCORRECT_SECURE_MESSAGING_DATA_OBJECTS => {
+                f.write_str("INCORRECT_SECURE_MESSAGING_DATA_OBJECTS")
             }
 
-            UnspecifiedNonpersistentExecutionError => 0x6400,
-            UnspecifiedPersistentExecutionError => 0x6500,
+            Self::WRONG_PARAMETERS_NO_INFO => f.write_str("WRONG_PARAMETERS_NO_INFO"),
+            Self::INCORRECT_PARAMETERS => f.write_str("INCORRECT_PARAMETERS"),
+            Self::FUCNTION_NOT_SUPPORTED => f.write_str("FUCNTION_NOT_SUPPORTED"),
+            Self::FILE_OR_APP_NOT_FOUND => f.write_str("FILE_OR_APP_NOT_FOUND"),
+            Self::RECORD_NOT_FOUND => f.write_str("RECORD_NOT_FOUND"),
+            Self::NOT_ENOUGH_MEMORY_IN_FILE => f.write_str("NOT_ENOUGH_MEMORY_IN_FILE"),
+            Self::NC_INCONSISTENT_WITH_TLV => f.write_str("NC_INCONSISTENT_WITH_TLV"),
+            Self::INCORRECT_P1P2 => f.write_str("INCORRECT_P1P2"),
+            Self::NC_INCONSISTENT_WITH_P1P2 => f.write_str("NC_INCONSISTENT_WITH_P1P2"),
+            Self::REFERENCE_NOT_FOUND => f.write_str("REFERENCE_NOT_FOUND"),
+            Self::FILE_ALREADY_EXISTS => f.write_str("FILE_ALREADY_EXISTS"),
+            Self::DF_NAME_ALREADY_EXISTS => f.write_str("DF_NAME_ALREADY_EXISTS"),
 
-            WrongLength => 0x6700,
+            Self::WRONG_PARAMETERS => f.write_str("WRONG_PARAMETERS"),
 
-            LogicalChannelNotSupported => 0x6881,
-            SecureMessagingNotSupported => 0x6882,
-            CommandChainingNotSupported => 0x6884,
-
-            SecurityStatusNotSatisfied => 0x6982,
-            ConditionsOfUseNotSatisfied => 0x6985,
-            OperationBlocked => 0x6983,
-
-            IncorrectDataParameter => 0x6a80,
-            FunctionNotSupported => 0x6a81,
-            NotFound => 0x6a82,
-            NotEnoughMemory => 0x6a84,
-            IncorrectP1OrP2Parameter => 0x6a86,
-            KeyReferenceNotFound => 0x6a88,
-
-            InstructionNotSupportedOrInvalid => 0x6d00,
-            ClassNotSupported => 0x6e00,
-            UnspecifiedCheckingError => 0x6f00,
-
-            Success => 0x9000,
-            MoreAvailable(x) => u16::from_be_bytes([0x61, x]),
+            Self::INSTRUCTION_NOT_SUPPORTED_OR_INVALID => {
+                f.write_str("INSTRUCTION_NOT_SUPPORTED_OR_INVALID")
+            }
+            Self::CLASS_NOT_SUPPORTED => f.write_str("CLASS_NOT_SUPPORTED"),
+            Self::ERROR => f.write_str("ERROR"),
+            _ => {
+                if let Some(c) = self.as_warning_triggering() {
+                    f.debug_struct("WARNING_TRIGGERING")
+                        .field("query_length", &c)
+                        .finish()
+                } else if let Some(c) = self.as_error_triggering() {
+                    f.debug_struct("ERROR_TRIGGERING")
+                        .field("query_length", &c)
+                        .finish()
+                } else if let Some(a) = self.as_more_available() {
+                    f.debug_struct("MORE_AVAILABLE")
+                        .field("available", &a)
+                        .finish()
+                } else if let Some(a) = self.as_wrong_le_field() {
+                    f.debug_struct("WRONG_LE_FIELD")
+                        .field("available", &a)
+                        .finish()
+                } else if let Some(c) = self.as_warning_counter() {
+                    f.debug_struct("WARNING_COUNTER")
+                        .field("counter", &c)
+                        .finish()
+                } else {
+                    f.write_fmt(format_args!("{:02x}", self.0))
+                }
+            }
         }
     }
 }
 
-impl From<Status> for [u8; 2] {
-    #[inline]
-    fn from(status: Status) -> [u8; 2] {
-        let sw: u16 = status.into();
-        sw.to_be_bytes()
+impl Status {
+    pub const SUCCESS: Self = Self(0x9000);
+
+    const MORE_AVAILABLE_MASK: u16 = 0x6100;
+
+    pub const DATA_UNCHANGED_WARNING: Self = Self(0x6200);
+    const WARNING_TRIGGERING_LOWER: u16 = 0x6202;
+    const WARNING_TRIGGERING_UPPER: u16 = 0x6280;
+    const ERROR_TRIGGERING_LOWER: u16 = 0x6402;
+    const ERROR_TRIGGERING_UPPER: u16 = 0x6480;
+    pub const CORRUPTED_DATA: Self = Self(0x6281);
+    pub const UNEXPECTED_EOF: Self = Self(0x6282);
+    pub const SELECT_FILE_DEACTIVATED: Self = Self(0x6283);
+    pub const FILE_CONTROL_INFO_BADLY_FORMATTED: Self = Self(0x6284);
+    pub const SELECT_FILE_IN_TERMINATION_STATE: Self = Self(0x6285);
+    pub const NO_INPUT_DATA_FROM_SENSOR: Self = Self(0x6286);
+
+    pub const DATA_CHANGED_WARNING: Self = Self(0x6300);
+    pub const FILLED_BY_LAST_WRITE: Self = Self(0x6381);
+    const WARNING_COUNTER_MASK: u16 = 0x63C0;
+
+    pub const DATA_CHANGED_ERROR: Self = Self(0x6500);
+    pub const MEMORY_FAILURE: Self = Self(0x6581);
+
+    pub const CLA_NOT_SUPPORTED: Self = Self(0x6800);
+    pub const LOGICAL_CHANNEL_NOT_SUPPORTED: Self = Self(0x6881);
+    pub const SECURE_MESSAGING_NOT_SUPPORTED: Self = Self(0x6882);
+    pub const LAST_COMMANND_OF_CHAIN_EXPECTED: Self = Self(0x6883);
+    pub const COMMAND_CHAINING_NOT_SUPPORTED: Self = Self(0x6884);
+
+    pub const COMMAND_NOT_ALLOWED: Self = Self(0x6900);
+    pub const COMMAND_INCOMPATIBLE_FILE_STRUCTURE: Self = Self(0x6981);
+    pub const SECURITY_STATUS_NOT_SATISFIED: Self = Self(0x6982);
+    pub const AUTHENTICATION_METHOD_BLOCKED: Self = Self(0x6983);
+    pub const REFERENCE_DATA_NOT_USABLE: Self = Self(0x6984);
+    pub const CONDITION_OF_USE_NOT_SATISFIED: Self = Self(0x6985);
+    pub const COMMAND_NOT_ALLOWED_NO_EF: Self = Self(0x6986);
+    pub const EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING: Self = Self(0x6987);
+    pub const INCORRECT_SECURE_MESSAGING_DATA_OBJECTS: Self = Self(0x6988);
+
+    pub const WRONG_PARAMETERS_NO_INFO: Self = Self(0x6A00);
+    pub const INCORRECT_PARAMETERS: Self = Self(0x6A80);
+    pub const FUCNTION_NOT_SUPPORTED: Self = Self(0x6A81);
+    pub const FILE_OR_APP_NOT_FOUND: Self = Self(0x6A82);
+    pub const RECORD_NOT_FOUND: Self = Self(0x6A83);
+    pub const NOT_ENOUGH_MEMORY_IN_FILE: Self = Self(0x6A84);
+    pub const NC_INCONSISTENT_WITH_TLV: Self = Self(0x6A85);
+    pub const INCORRECT_P1P2: Self = Self(0x6A86);
+    pub const NC_INCONSISTENT_WITH_P1P2: Self = Self(0x6A87);
+    pub const REFERENCE_NOT_FOUND: Self = Self(0x6A88);
+    pub const FILE_ALREADY_EXISTS: Self = Self(0x6A89);
+    pub const DF_NAME_ALREADY_EXISTS: Self = Self(0x6A8A);
+
+    pub const WRONG_PARAMETERS: Self = Self(0x6B00);
+
+    const WRONG_LE_FIELD_MASK: u16 = 0x6C00;
+
+    pub const INSTRUCTION_NOT_SUPPORTED_OR_INVALID: Self = Self(0x6D00);
+    pub const CLASS_NOT_SUPPORTED: Self = Self(0x6E00);
+    pub const ERROR: Self = Self(0x6F00);
+
+    pub const fn as_more_available(self) -> Option<u8> {
+        if self.0 | Self::MORE_AVAILABLE_MASK == Self::MORE_AVAILABLE_MASK {
+            Some((self.0 & 0x00FF) as u8)
+        } else {
+            None
+        }
+    }
+    pub const fn is_more_available(self) -> bool {
+        self.as_more_available().is_some()
+    }
+
+    pub const fn more_available(value: u16) -> Self {
+        Self(Self::MORE_AVAILABLE_MASK | value as u16)
+    }
+
+    pub const fn is_warning(self) -> bool {
+        self.is_warning_without_modification() || self.is_warning_with_modification()
+    }
+
+    /// The proccessing raised a warning and did not change state
+    pub const fn is_warning_without_modification(self) -> bool {
+        self.0 | 0x6200 == 0x6200
+    }
+    /// The proccessing raised a warning and changed state
+    pub const fn is_warning_with_modification(self) -> bool {
+        self.0 | 0x6300 == 0x6300
+    }
+
+    pub const fn is_execution_error(self) -> bool {
+        self.0 | 0x6400 == 0x6400 || self.0 | 0x6500 == 0x6500 || self.0 | 0x6600 == 0x6600
+    }
+    pub const fn is_checking_error(self) -> bool {
+        self.0 | 0x6700 == 0x6700
+            || self.0 | 0x6800 == 0x6800
+            || self.0 | 0x6900 == 0x6900
+            || self.0 | 0x6A00 == 0x6A00
+            || self.0 | 0x6B00 == 0x6B00
+            || self.0 | 0x6C00 == 0x6C00
+            || self.0 | 0x6D00 == 0x6D00
+            || self.0 | 0x6E00 == 0x6E00
+            || self.0 | 0x6F00 == 0x6F00
+    }
+
+    pub const fn is_error(self) -> bool {
+        self.is_execution_error() || self.is_checking_error()
+    }
+
+    pub const fn is_warning_triggering(self) -> bool {
+        self.as_warning_triggering().is_some()
+    }
+    pub const fn as_warning_triggering(self) -> Option<u8> {
+        if matches!(
+            self.0,
+            Self::WARNING_TRIGGERING_LOWER..=Self::WARNING_TRIGGERING_UPPER
+        ) {
+            Some((self.0 & 0x00FF) as u8)
+        } else {
+            None
+        }
+    }
+
+    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    pub const fn warning_triggering(value: u8) -> Self {
+        match Self::try_warning_triggering(value) {
+            Ok(s) => s,
+            Err(_) => panic!("Expected 0x02 <= value < 0x81"),
+        }
+    }
+    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    pub const fn try_warning_triggering(value: u8) -> Result<Self, TriggeringError> {
+        if value <= 0x80 && value >= 0x02 {
+            Ok(Self(Self::WARNING_TRIGGERING_LOWER | value as u16))
+        } else {
+            Err(TriggeringError)
+        }
+    }
+
+    pub const fn is_warning_counter(self) -> bool {
+        self.as_warning_counter().is_some()
+    }
+
+    pub const fn as_warning_counter(self) -> Option<u8> {
+        if self.0 | Self::WARNING_COUNTER_MASK == Self::WARNING_COUNTER_MASK {
+            Some((self.0 | 0x00F) as u8)
+        } else {
+            None
+        }
+    }
+
+    pub const fn try_warning_counter(value: u8) -> Result<Self, WarningCounterError> {
+        if value <= 0xF {
+            Ok(Self(Self::WARNING_COUNTER_MASK | value as u16))
+        } else {
+            Err(WarningCounterError)
+        }
+    }
+    /// Value must be 0x00 <= value < 0x0F, otherwise panics
+    pub const fn warning_counter(value: u8) -> Self {
+        match Self::try_warning_counter(value) {
+            Ok(s) => s,
+            Err(_) => panic!("Expected 0x00 <= value < 0x0F"),
+        }
+    }
+    pub const fn is_error_triggering(self) -> bool {
+        self.as_error_triggering().is_some()
+    }
+    pub const fn as_error_triggering(self) -> Option<u8> {
+        if matches!(
+            self.0,
+            Self::ERROR_TRIGGERING_LOWER..=Self::ERROR_TRIGGERING_UPPER
+        ) {
+            Some((self.0 & 0x00FF) as u8)
+        } else {
+            None
+        }
+    }
+
+    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    pub const fn error_triggering(value: u8) -> Self {
+        match Self::try_error_triggering(value) {
+            Ok(s) => s,
+            Err(_) => panic!("Expected 0x02 <= value < 0x81"),
+        }
+    }
+    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    pub const fn try_error_triggering(value: u8) -> Result<Self, TriggeringError> {
+        if value <= 0x80 && value >= 0x02 {
+            Ok(Self(Self::ERROR_TRIGGERING_LOWER | value as u16))
+        } else {
+            Err(TriggeringError)
+        }
+    }
+
+    pub const fn as_wrong_le_field(self) -> Option<u8> {
+        if self.0 | Self::WRONG_LE_FIELD_MASK == Self::WRONG_LE_FIELD_MASK {
+            Some((self.0 & 0x00FF) as u8)
+        } else {
+            None
+        }
+    }
+    pub const fn is_wrong_le_field(self) -> bool {
+        self.as_wrong_le_field().is_some()
+    }
+    pub const fn wrong_le_field(available_bytes: u8) -> Self {
+        Self(Self::WRONG_LE_FIELD_MASK | available_bytes as u16)
+    }
+
+    pub const fn as_bytes(self) -> [u8; 2] {
+        self.0.to_be_bytes()
     }
 }
 
-impl<const S: usize> From<Status> for Data<S> {
-    #[inline]
-    fn from(status: Status) -> Data<S> {
-        let arr: [u8; 2] = status.into();
-        Data::from_slice(&arr).unwrap()
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+/// Expected 0x02 <= value < 0x81
+pub struct TriggeringError;
+
+impl Display for TriggeringError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Expected 0x02 <= value < 0x81")
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+/// Expected 0x02 <= value < 0x81
+pub struct WarningCounterError;
+
+impl Display for WarningCounterError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Expected 0x00 <= value < 0xF")
+    }
+}
+
+impl From<u16> for Status {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Status> for u16 {
+    fn from(value: Status) -> Self {
+        value.0
+    }
+}
+
+impl From<Status> for [u8; 2] {
+    fn from(value: Status) -> Self {
+        value.as_bytes()
     }
 }
