@@ -9,15 +9,15 @@ pub struct Command<const S: usize> {
     class: class::Class,
     instruction: Instruction,
 
-    pub p1: u8,
-    pub p2: u8,
+    p1: u8,
+    p2: u8,
 
     /// The main reason this is modeled as Bytes and not
     /// a fixed array is for serde purposes.
     data: Data<S>,
 
     le: usize,
-    pub extended: bool,
+    extended: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,13 +26,13 @@ pub struct CommandView<'a> {
     class: class::Class,
     instruction: Instruction,
 
-    pub p1: u8,
-    pub p2: u8,
+    p1: u8,
+    p2: u8,
 
     data: &'a [u8],
 
     le: usize,
-    pub extended: bool,
+    extended: bool,
 }
 
 impl<'a> CommandView<'a> {
@@ -50,6 +50,18 @@ impl<'a> CommandView<'a> {
 
     pub fn expected(&self) -> usize {
         self.le
+    }
+
+    pub fn p1(&self) -> u8 {
+        self.p1
+    }
+
+    pub fn p2(&self) -> u8 {
+        self.p2
+    }
+
+    pub fn extended(&self) -> bool {
+        self.extended
     }
 }
 
@@ -88,6 +100,18 @@ impl<const S: usize> Command<S> {
             le: self.le,
             extended: self.extended,
         }
+    }
+
+    pub fn p1(&self) -> u8 {
+        self.p1
+    }
+
+    pub fn p2(&self) -> u8 {
+        self.p2
+    }
+
+    pub fn extended(&self) -> bool {
+        self.extended
     }
 
     /// This can be use for APDU chaining to convert
