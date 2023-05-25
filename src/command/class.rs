@@ -91,6 +91,11 @@ impl Class {
         }
     }
 
+    pub fn as_chained(mut self) -> Self {
+        self.cla |= 1 << 4;
+        self
+    }
+
     #[inline]
     pub fn channel(&self) -> Option<u8> {
         Some(match self.range() {
