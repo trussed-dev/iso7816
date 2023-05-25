@@ -20,51 +20,6 @@ pub struct Command<const S: usize> {
     extended: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-/// Memory-efficient unowned version of [`Command`]
-pub struct CommandView<'a> {
-    class: class::Class,
-    instruction: Instruction,
-
-    p1: u8,
-    p2: u8,
-
-    data: &'a [u8],
-
-    le: usize,
-    extended: bool,
-}
-
-impl<'a> CommandView<'a> {
-    pub fn class(&self) -> class::Class {
-        self.class
-    }
-
-    pub fn instruction(&self) -> Instruction {
-        self.instruction
-    }
-
-    pub fn data(&self) -> &[u8] {
-        self.data
-    }
-
-    pub fn expected(&self) -> usize {
-        self.le
-    }
-
-    pub fn p1(&self) -> u8 {
-        self.p1
-    }
-
-    pub fn p2(&self) -> u8 {
-        self.p2
-    }
-
-    pub fn extended(&self) -> bool {
-        self.extended
-    }
-}
-
 impl<const S: usize> Command<S> {
     pub fn try_from(apdu: &[u8]) -> Result<Self, FromSliceError> {
         apdu.try_into()
@@ -149,6 +104,200 @@ impl<const S: usize> Command<S> {
 
         // add the data to the end.
         self.data.extend_from_slice(command.data())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Memory-efficient unowned version of [`Command`]
+pub struct CommandView<'a> {
+    class: class::Class,
+    instruction: Instruction,
+
+    p1: u8,
+    p2: u8,
+
+    data: &'a [u8],
+
+    le: usize,
+    extended: bool,
+}
+
+impl<'a> CommandView<'a> {
+    pub fn class(&self) -> class::Class {
+        self.class
+    }
+
+    pub fn instruction(&self) -> Instruction {
+        self.instruction
+    }
+
+    pub fn data(&self) -> &[u8] {
+        self.data
+    }
+
+    pub fn expected(&self) -> usize {
+        self.le
+    }
+
+    pub fn p1(&self) -> u8 {
+        self.p1
+    }
+
+    pub fn p2(&self) -> u8 {
+        self.p2
+    }
+
+    pub fn extended(&self) -> bool {
+        self.extended
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommandBuilder<'a> {
+    class: class::Class,
+    instruction: Instruction,
+
+    p1: u8,
+    p2: u8,
+
+    data: &'a [u8],
+
+    le: usize,
+}
+
+impl<'a> CommandBuilder<'a> {
+    /// Panics if data.len() > u16::MAX
+    pub fn new(
+        class: class::Class,
+        instruction: instruction::Instruction,
+        p1: u8,
+        p2: u8,
+        data: &'a [u8],
+        le: u16,
+    ) -> Self {
+        assert!(data.len() < u16::MAX as usize);
+        Self {
+            class,
+            instruction,
+            p1,
+            p2,
+            data,
+            le: le as _,
+        }
+    }
+
+    /// Serialize the command into the given buffer and return the length of data returned to the buffer.
+    ///
+    /// If the command does not fit in the buffer, fill the buffer with data and return another command
+    /// to be send containing the remaining data through command chaining
+    pub fn serialize_into<'buf>(self, buf: &'buf mut [u8]) -> Result<usize, (usize, Self)> {
+        /// Returns (data, len of data, and is_extended)
+        fn serialize_data_len(len: u16) -> ([u8; 3], usize, bool) {
+            match len {
+                0 => ([0; 3], 0, false),
+                1..=255 => ([len as u8, 0, 0], 1, false),
+                _ => {
+                    let l = len.to_be_bytes();
+                    ([0, l[0], l[1]], 3, true)
+                }
+            }
+        }
+
+        fn serialize_expected_len(len: u16, force_extended: bool) -> ([u8; 3], usize) {
+            match (len, force_extended) {
+                (0, _) => ([0; 3], 0),
+                (1..=255, false) => ([len as u8, 0, 0], 1),
+                (256, false) => ([0, 0, 0], 1),
+                (_, true) => {
+                    let l = len.to_be_bytes();
+                    ([l[0], l[1], 0], 3)
+                }
+                (_, false) => {
+                    let l = len.to_be_bytes();
+                    ([0, l[0], l[1]], 3)
+                }
+            }
+        }
+
+        const HEADER_LEN: usize = 4;
+        if buf.len() < HEADER_LEN {
+            return Err((0, self));
+        }
+        // Safe to unwrap because of check in `new`
+        let (data_len_enc, data_len_len, data_len_extended) =
+            serialize_data_len(self.data.len().try_into().unwrap());
+        let data_len = &data_len_enc[..data_len_len];
+
+        let (expected_len_enc, expected_len_len) =
+            serialize_expected_len(self.le.try_into().unwrap(), data_len_extended);
+        let expected_len = &expected_len_enc[..expected_len_len];
+
+        let rem = &buf[HEADER_LEN..];
+        let body_len = data_len.len() + expected_len.len() + self.data.len();
+        if rem.len() < body_len {
+            if rem.len() < data_len.len() + expected_len.len() {
+                // Let's not support this case
+                return Err((0, self));
+            }
+
+            let (send_now, send_later) =
+                self.data.split_at(self.data.len() - (body_len - rem.len()));
+
+            let send_now = Self {
+                class: self.class.as_chained(),
+                instruction: self.instruction,
+                p1: self.p1,
+                p2: self.p2,
+                data: send_now,
+                le: 0,
+            };
+            let send_later = Self {
+                class: self.class,
+                instruction: self.instruction,
+                p1: self.p1,
+                p2: self.p2,
+                data: send_later,
+                le: self.le,
+            };
+            // We know that the comman has enough space to be properly serialized
+            let sent = send_now.serialize_into(buf).unwrap();
+            return Err((sent, send_later));
+        }
+
+        buf[0] = self.class.into_inner();
+        buf[1] = self.instruction.into();
+        buf[2] = self.p1;
+        buf[3] = self.p2;
+
+        buf[..data_len.len()].copy_from_slice(data_len);
+        buf[data_len.len()..][..self.data.len()].copy_from_slice(self.data);
+        buf[data_len.len() + self.data.len()..][..expected_len.len()].copy_from_slice(expected_len);
+        Ok(HEADER_LEN + data_len.len() + self.data.len() + expected_len.len())
+    }
+}
+
+impl<'a, 'b> PartialEq<CommandView<'a>> for CommandBuilder<'b> {
+    fn eq(&self, other: &CommandView<'a>) -> bool {
+        let Self {
+            class,
+            instruction,
+            p1,
+            p2,
+            data,
+            le,
+        } = self;
+        class == &other.class
+            && instruction == &other.instruction
+            && p1 == &other.p1
+            && p2 == &other.p2
+            && data == &other.data
+            && le == &other.le
+    }
+}
+
+impl<'a, 'b> PartialEq<CommandBuilder<'a>> for CommandView<'b> {
+    fn eq(&self, other: &CommandBuilder<'a>) -> bool {
+        other == self
     }
 }
 
