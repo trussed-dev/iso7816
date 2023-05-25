@@ -35,25 +35,6 @@ pub struct CommandView<'a> {
     pub extended: bool,
 }
 
-// impl<const S: usize> core::borrow::Borrow<CommandView<'a> + 'a> for Command<S> {
-//     fn borrow(&self) -> &CommandView<'a> {
-//         &CommandView {
-//             class: self.class,
-//             instruction: self.instruction,
-//             p1: self.p1,
-//             p2: self.p2,
-//             data: self.data.as_slice(),
-//             le: self.le,
-//             extended: self.extended,
-//         }
-//     }
-// }
-
-// can't implement ToOwned, as
-// a) our conversion is fallible
-// b) our conversion has variable target size
-// impl<'a, S: const usize> ToOwned for CommandView<'a>
-
 impl<'a> CommandView<'a> {
     pub fn class(&self) -> class::Class {
         self.class
