@@ -162,7 +162,7 @@ pub struct CommandBuilder<'a> {
 
     data: &'a [u8],
 
-    le: usize,
+    le: u16,
 }
 
 impl<'a> CommandBuilder<'a> {
@@ -182,7 +182,7 @@ impl<'a> CommandBuilder<'a> {
             p1,
             p2,
             data,
-            le: le as _,
+            le,
         }
     }
 
@@ -192,10 +192,10 @@ impl<'a> CommandBuilder<'a> {
     /// to be send containing the remaining data through command chaining
     pub fn serialize_into<'buf>(self, buf: &'buf mut [u8]) -> Result<usize, (usize, Self)> {
         /// Returns (data, len of data, and is_extended)
-        fn serialize_data_len(len: u16) -> ([u8; 3], usize, bool) {
-            match len {
-                0 => ([0; 3], 0, false),
-                1..=255 => ([len as u8, 0, 0], 1, false),
+        fn serialize_data_len(len: u16, expected_len: u16) -> ([u8; 3], usize, bool) {
+            match (len, expected_len > 255) {
+                (0, _) => ([0; 3], 0, false),
+                (1..=255, false) => ([len as u8, 0, 0], 1, false),
                 _ => {
                     let l = len.to_be_bytes();
                     ([0, l[0], l[1]], 3, true)
@@ -210,7 +210,7 @@ impl<'a> CommandBuilder<'a> {
                 (256, false) => ([0, 0, 0], 1),
                 (_, true) => {
                     let l = len.to_be_bytes();
-                    ([l[0], l[1], 0], 3)
+                    ([l[0], l[1], 0], 2)
                 }
                 (_, false) => {
                     let l = len.to_be_bytes();
@@ -225,11 +225,11 @@ impl<'a> CommandBuilder<'a> {
         }
         // Safe to unwrap because of check in `new`
         let (data_len_enc, data_len_len, data_len_extended) =
-            serialize_data_len(self.data.len().try_into().unwrap());
+            serialize_data_len(self.data.len().try_into().unwrap(), self.le);
         let data_len = &data_len_enc[..data_len_len];
 
         let (expected_len_enc, expected_len_len) =
-            serialize_expected_len(self.le.try_into().unwrap(), data_len_extended);
+            serialize_expected_len(self.le, data_len_extended);
         let expected_len = &expected_len_enc[..expected_len_len];
 
         let rem = &buf[HEADER_LEN..];
@@ -269,9 +269,10 @@ impl<'a> CommandBuilder<'a> {
         buf[2] = self.p1;
         buf[3] = self.p2;
 
-        buf[..data_len.len()].copy_from_slice(data_len);
-        buf[data_len.len()..][..self.data.len()].copy_from_slice(self.data);
-        buf[data_len.len() + self.data.len()..][..expected_len.len()].copy_from_slice(expected_len);
+        let rem = &mut buf[HEADER_LEN..];
+        rem[..data_len.len()].copy_from_slice(data_len);
+        rem[data_len.len()..][..self.data.len()].copy_from_slice(self.data);
+        rem[data_len.len() + self.data.len()..][..expected_len.len()].copy_from_slice(expected_len);
         Ok(HEADER_LEN + data_len.len() + self.data.len() + expected_len.len())
     }
 }
@@ -291,7 +292,7 @@ impl<'a, 'b> PartialEq<CommandView<'a>> for CommandBuilder<'b> {
             && p1 == &other.p1
             && p2 == &other.p2
             && data == &other.data
-            && le == &other.le
+            && *le as usize == other.le
     }
 }
 
