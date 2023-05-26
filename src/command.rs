@@ -190,7 +190,11 @@ impl<'a> CommandBuilder<'a> {
     ///
     /// If the command does not fit in the buffer, fill the buffer with data and return another command
     /// to be send containing the remaining data through command chaining
-    pub fn serialize_into<'buf>(self, buf: &'buf mut [u8]) -> Result<usize, (usize, Self)> {
+    pub fn serialize_into<'buf>(
+        self,
+        buf: &'buf mut [u8],
+        supports_extended_length: bool,
+    ) -> Result<usize, (usize, Self)> {
         /// Returns (data, len of data, and is_extended)
         fn serialize_data_len(len: u16, expected_len: u16) -> ([u8; 3], usize, bool) {
             match (len, expected_len > 255) {
@@ -219,6 +223,11 @@ impl<'a> CommandBuilder<'a> {
             }
         }
 
+        let mut max_data_len = u16::MAX as usize;
+        if !supports_extended_length {
+            max_data_len = 255;
+        }
+
         const HEADER_LEN: usize = 4;
         if buf.len() < HEADER_LEN {
             return Err((0, self));
@@ -233,15 +242,17 @@ impl<'a> CommandBuilder<'a> {
         let expected_len = &expected_len_enc[..expected_len_len];
 
         let rem = &buf[HEADER_LEN..];
-        let body_len = data_len.len() + expected_len.len() + self.data.len();
-        if rem.len() < body_len {
-            if rem.len() < data_len.len() + expected_len.len() {
+        let available_data_len = rem
+            .len()
+            .saturating_sub(data_len.len() + expected_len.len())
+            .min(max_data_len);
+        if available_data_len < self.data.len() {
+            if available_data_len == 0 {
                 // Let's not support this case
                 return Err((0, self));
             }
 
-            let (send_now, send_later) =
-                self.data.split_at(self.data.len() - (body_len - rem.len()));
+            let (send_now, send_later) = self.data.split_at(available_data_len);
 
             let send_now = Self {
                 class: self.class.as_chained(),
@@ -260,7 +271,9 @@ impl<'a> CommandBuilder<'a> {
                 le: self.le,
             };
             // We know that the comman has enough space to be properly serialized
-            let sent = send_now.serialize_into(buf).unwrap();
+            let sent = send_now
+                .serialize_into(buf, supports_extended_length)
+                .unwrap();
             return Err((sent, send_later));
         }
 
