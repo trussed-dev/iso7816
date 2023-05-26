@@ -223,6 +223,12 @@ impl<'a> CommandBuilder<'a> {
             }
         }
 
+        let le = if supports_extended_length {
+            self.le
+        } else {
+            self.le.min(255)
+        };
+
         let mut max_data_len = u16::MAX as usize;
         if !supports_extended_length {
             max_data_len = 255;
@@ -234,11 +240,10 @@ impl<'a> CommandBuilder<'a> {
         }
         // Safe to unwrap because of check in `new`
         let (data_len_enc, data_len_len, data_len_extended) =
-            serialize_data_len(self.data.len().try_into().unwrap(), self.le);
+            serialize_data_len(self.data.len().try_into().unwrap(), le);
         let data_len = &data_len_enc[..data_len_len];
 
-        let (expected_len_enc, expected_len_len) =
-            serialize_expected_len(self.le, data_len_extended);
+        let (expected_len_enc, expected_len_len) = serialize_expected_len(le, data_len_extended);
         let expected_len = &expected_len_enc[..expected_len_len];
 
         let rem = &buf[HEADER_LEN..];
@@ -268,13 +273,16 @@ impl<'a> CommandBuilder<'a> {
                 p1: self.p1,
                 p2: self.p2,
                 data: send_later,
-                le: self.le,
+                le,
             };
             // We know that the comman has enough space to be properly serialized
             let sent = send_now
                 .serialize_into(buf, supports_extended_length)
                 .unwrap();
             return Err((sent, send_later));
+        }
+        if data_len_extended {
+            assert!(supports_extended_length);
         }
 
         buf[0] = self.class.into_inner();

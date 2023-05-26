@@ -48,9 +48,14 @@ fuzz_target!(|data: Input| {
         Ok(len) => {
             // dbg!(&buffer[..len][..len]);
             let view = CommandView::try_from(&buffer[..len]).unwrap();
-            assert_eq!(view, command, "buffer: {:02x?}", &buffer[..len]);
             if !supports_extended {
                 assert!(view.data().len() <= 255);
+                assert_eq!(view.extended(), false);
+                // Without extended support, le is truncated to 255 at max, and the response will come with command chaining
+                let command = CommandBuilder::new(class, ins, p1, p2, data, le.min(255));
+                assert_eq!(command, view);
+            } else {
+                assert_eq!(view, command);
             }
         }
         Err((len, mut rem)) => {
@@ -58,6 +63,7 @@ fuzz_target!(|data: Input| {
             let mut parsed = Command::<4096>::try_from(&buffer[..len]).unwrap();
             if !supports_extended {
                 assert!(parsed.data().len() <= 255);
+                assert_eq!(parsed.extended(), false);
             }
             // Loop with arbitrary buflens forever
             for buflen in repeat(buf_lens.iter().chain([&128])).flatten() {
@@ -68,9 +74,17 @@ fuzz_target!(|data: Input| {
                         let view = CommandView::try_from(&buffer[..len]).unwrap();
                         if !supports_extended {
                             assert!(view.data().len() <= 255);
+                            assert_eq!(view.extended(), false);
                         }
                         parsed.extend_from_command_view(view).unwrap();
-                        assert_eq!(command, parsed.as_view());
+                        if supports_extended {
+                            assert_eq!(command, parsed.as_view());
+                        } else {
+                            // Without extended support, le is truncated to 255 at max, and the response will come with command chaining
+                            let command =
+                                CommandBuilder::new(class, ins, p1, p2, data, le.min(255));
+                            assert_eq!(command, parsed.as_view());
+                        }
                         return;
                     }
                     Err((len, new_rem)) => {
@@ -80,6 +94,7 @@ fuzz_target!(|data: Input| {
                         let view = CommandView::try_from(&buffer[..len]).unwrap();
                         if !supports_extended {
                             assert!(view.data().len() <= 255);
+                            assert_eq!(view.extended(), false);
                         }
                         parsed.extend_from_command_view(view).unwrap();
                     }
