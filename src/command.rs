@@ -186,39 +186,31 @@ impl<'a> CommandBuilder<'a> {
         }
     }
 
-    /// Serialize the command into the given buffer and return the length of data returned to the buffer.
-    ///
-    /// If the command does not fit in the buffer, fill the buffer with data and return another command
-    /// to be send containing the remaining data through command chaining
-    pub fn serialize_into<'buf>(
-        self,
-        buf: &'buf mut [u8],
-        supports_extended_length: bool,
-    ) -> Result<usize, (usize, Self)> {
+    fn header_data(&self, supports_extended_length: bool) -> BuildingHeaderData {
         /// Returns (data, len of data, and is_extended)
-        fn serialize_data_len(len: u16, expected_len: u16) -> ([u8; 3], usize, bool) {
+        fn serialize_data_len(len: u16, expected_len: u16) -> (heapless::Vec<u8, 3>, bool) {
             match (len, expected_len > 255) {
-                (0, _) => ([0; 3], 0, false),
-                (1..=255, false) => ([len as u8, 0, 0], 1, false),
+                (0, _) => (Default::default(), false),
+                (1..=255, false) => ([len as u8].as_slice().try_into().unwrap(), false),
                 _ => {
                     let l = len.to_be_bytes();
-                    ([0, l[0], l[1]], 3, true)
+                    ([0, l[0], l[1]].as_slice().try_into().unwrap(), true)
                 }
             }
         }
 
-        fn serialize_expected_len(len: u16, force_extended: bool) -> ([u8; 3], usize) {
+        fn serialize_expected_len(len: u16, force_extended: bool) -> heapless::Vec<u8, 3> {
             match (len, force_extended) {
-                (0, _) => ([0; 3], 0),
-                (1..=255, false) => ([len as u8, 0, 0], 1),
-                (256, false) => ([0, 0, 0], 1),
+                (0, _) => Default::default(),
+                (1..=255, false) => [len as u8].as_slice().try_into().unwrap(),
+                (256, false) => [0].as_slice().try_into().unwrap(),
                 (_, true) => {
                     let l = len.to_be_bytes();
-                    ([l[0], l[1], 0], 2)
+                    [l[0], l[1]].as_slice().try_into().unwrap()
                 }
                 (_, false) => {
                     let l = len.to_be_bytes();
-                    ([0, l[0], l[1]], 3)
+                    [0, l[0], l[1]].as_slice().try_into().unwrap()
                 }
             }
         }
@@ -229,27 +221,70 @@ impl<'a> CommandBuilder<'a> {
             self.le.min(255)
         };
 
-        let mut max_data_len = u16::MAX as usize;
-        if !supports_extended_length {
-            max_data_len = 255;
-        }
+        // Safe to unwrap because of check in `new`
+        let (data_len, data_len_extended) =
+            serialize_data_len(self.data.len().try_into().unwrap(), le);
 
+        let expected_data_len = serialize_expected_len(le, data_len_extended);
+        BuildingHeaderData {
+            le,
+            data_len,
+            expected_data_len,
+        }
+    }
+
+    /// Required length for serialization in only one command.
+    /// Assumes extended length support
+    ///
+    /// This can be useful to get the necessary dimension for the buffer to provide to [serialize_into](Self::serialize_into)
+    pub fn required_len(&self) -> usize {
+        let header_data = self.header_data(true);
+        let header_len = 4;
+        let length_len = header_data.data_len.len() + header_data.expected_data_len.len();
+        header_len + length_len + self.data.len()
+    }
+
+    /// Serialize into one vector with assuming support for extended length information
+    #[cfg(feature = "std")]
+    pub fn serialize_to_vec(self) -> Vec<u8> {
+        let required_len = self.required_len();
+        let mut buffer = vec![0; required_len];
+        assert_eq!(
+            self.serialize_into(&mut buffer, true).unwrap(),
+            required_len,
+            "internal error, serialization should fill the buffer"
+        );
+        buffer
+    }
+
+    /// Serialize the command into the given buffer and return the length of data returned to the buffer.
+    ///
+    /// If the command does not fit in the buffer, fill the buffer with data and return another command
+    /// to be send containing the remaining data through command chaining
+    pub fn serialize_into<'buf>(
+        self,
+        buf: &'buf mut [u8],
+        supports_extended_length: bool,
+    ) -> Result<usize, (usize, Self)> {
         const HEADER_LEN: usize = 4;
         if buf.len() < HEADER_LEN {
             return Err((0, self));
         }
-        // Safe to unwrap because of check in `new`
-        let (data_len_enc, data_len_len, data_len_extended) =
-            serialize_data_len(self.data.len().try_into().unwrap(), le);
-        let data_len = &data_len_enc[..data_len_len];
 
-        let (expected_len_enc, expected_len_len) = serialize_expected_len(le, data_len_extended);
-        let expected_len = &expected_len_enc[..expected_len_len];
+        let BuildingHeaderData {
+            le,
+            data_len,
+            expected_data_len,
+        } = self.header_data(supports_extended_length);
 
+        let mut max_data_len = u16::MAX as usize;
+        if !supports_extended_length {
+            max_data_len = 255;
+        }
         let rem = &buf[HEADER_LEN..];
         let available_data_len = rem
             .len()
-            .saturating_sub(data_len.len() + expected_len.len())
+            .saturating_sub(data_len.len() + expected_data_len.len())
             .min(max_data_len);
         if available_data_len < self.data.len() {
             if available_data_len == 0 {
@@ -281,21 +316,24 @@ impl<'a> CommandBuilder<'a> {
                 .unwrap();
             return Err((sent, send_later));
         }
-        if data_len_extended {
-            assert!(supports_extended_length);
-        }
-
         buf[0] = self.class.into_inner();
         buf[1] = self.instruction.into();
         buf[2] = self.p1;
         buf[3] = self.p2;
 
         let rem = &mut buf[HEADER_LEN..];
-        rem[..data_len.len()].copy_from_slice(data_len);
+        rem[..data_len.len()].copy_from_slice(&data_len);
         rem[data_len.len()..][..self.data.len()].copy_from_slice(self.data);
-        rem[data_len.len() + self.data.len()..][..expected_len.len()].copy_from_slice(expected_len);
-        Ok(HEADER_LEN + data_len.len() + self.data.len() + expected_len.len())
+        rem[data_len.len() + self.data.len()..][..expected_data_len.len()]
+            .copy_from_slice(&expected_data_len);
+        Ok(HEADER_LEN + data_len.len() + self.data.len() + expected_data_len.len())
     }
+}
+
+struct BuildingHeaderData {
+    le: u16,
+    data_len: heapless::Vec<u8, 3>,
+    expected_data_len: heapless::Vec<u8, 3>,
 }
 
 impl<'a, 'b> PartialEq<CommandView<'a>> for CommandBuilder<'b> {

@@ -14,6 +14,7 @@ libfuzzer-sys = "0.4"
 
 [dependencies.iso7816]
 path = ".."
+features = ["std"]
 
 # Prevent this from interfering with workspaces
 [workspace]
