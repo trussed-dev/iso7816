@@ -169,7 +169,7 @@ impl<'a> CommandBuilder<'a> {
         data: &'a [u8],
         le: u16,
     ) -> Self {
-        assert!(data.len() < u16::MAX as usize);
+        assert!(data.len() <= u16::MAX as usize);
         Self {
             class,
             instruction,
@@ -193,19 +193,24 @@ impl<'a> CommandBuilder<'a> {
             }
         }
 
-        fn serialize_expected_len(len: u16, force_extended: bool) -> heapless::Vec<u8, 3> {
-            match (len, force_extended) {
-                (0, _) => Default::default(),
-                (1..=255, false) => [len as u8].as_slice().try_into().unwrap(),
-                (256, false) => [0].as_slice().try_into().unwrap(),
-                (_, true) => {
+        fn serialize_expected_len(
+            len: u16,
+            force_extended: bool,
+            data_is_empty: bool,
+        ) -> heapless::Vec<u8, 3> {
+            match (len, force_extended, data_is_empty) {
+                (0, _, _) => Default::default(),
+                (1..=255, false, _) => [len as u8].as_slice().try_into().unwrap(),
+                (256, false, _) => [0].as_slice().try_into().unwrap(),
+                (_, _, false) => {
                     let l = len.to_be_bytes();
                     [l[0], l[1]].as_slice().try_into().unwrap()
                 }
-                (_, false) => {
+                (_, false, true) => {
                     let l = len.to_be_bytes();
                     [0, l[0], l[1]].as_slice().try_into().unwrap()
                 }
+                (_, true, true) => unreachable!("Can't have both no data and data extended length"),
             }
         }
 
@@ -219,7 +224,7 @@ impl<'a> CommandBuilder<'a> {
         let (data_len, data_len_extended) =
             serialize_data_len(self.data.len().try_into().unwrap(), le);
 
-        let expected_data_len = serialize_expected_len(le, data_len_extended);
+        let expected_data_len = serialize_expected_len(le, data_len_extended, self.data.is_empty());
         BuildingHeaderData {
             le,
             data_len,
@@ -239,7 +244,7 @@ impl<'a> CommandBuilder<'a> {
     }
 
     /// Serialize into one vector with assuming support for extended length information
-    #[cfg(feature = "std")]
+    #[cfg(any(feature = "std", test))]
     pub fn serialize_to_vec(self) -> Vec<u8> {
         let required_len = self.required_len();
         let mut buffer = vec![0; required_len];
@@ -610,6 +615,169 @@ mod test {
         assert_eq!(offset, lengths.offset);
         assert_eq!(nc, lengths.lc);
         assert_eq!(ne, lengths.le);
+    }
+
+    #[test]
+    fn builder() {
+        let command =
+            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 0x04);
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 04"));
+
+        let command =
+            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 0x00);
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03"));
+
+        let command =
+            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 256);
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00"));
+        let command =
+            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 257);
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 0101"));
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[],
+            0xFFFF,
+        );
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 FFFF"));
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x05, 0x06],
+            0x04,
+        );
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06 04"));
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x05, 0x06],
+            0x00,
+        );
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06"));
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x05, 0x06],
+            0x100,
+        );
+        assert_eq!(
+            command.serialize_to_vec(),
+            // Large LE also forces the data length to be extended (can't mix extended/non-extended)
+            &hex!("00 01 02 03 00 00 02 05 06 01 00")
+        );
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x01; 0x2AE],
+            0x100,
+        );
+
+        assert_eq!(
+            command.serialize_to_vec(),
+            [
+                hex!("00 01 02 03 00 02AE").as_slice(),
+                &[0x01; 0x2AE],
+                &hex!("01 00"),
+            ]
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>()
+        );
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x01; 0x2AE],
+            0x01,
+        );
+        assert_eq!(
+            command.serialize_to_vec(),
+            [
+                hex!("00 01 02 03 00 02AE").as_slice(),
+                &[0x01; 0x2AE],
+                &hex!("00 01"),
+            ]
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>()
+        );
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x01; 0x2AE],
+            0x00,
+        );
+        assert_eq!(
+            command.serialize_to_vec(),
+            [hex!("00 01 02 03 00 02AE").as_slice(), &[0x01; 0x2AE],]
+                .into_iter()
+                .flatten()
+                .copied()
+                .collect::<Vec<u8>>()
+        );
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x01; 0x2AE],
+            0xFF,
+        );
+        assert_eq!(
+            command.serialize_to_vec(),
+            [
+                hex!("00 01 02 03 00 02AE").as_slice(),
+                &[0x01; 0x2AE],
+                &[0x00, 0xFF]
+            ]
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>()
+        );
+
+        let command = CommandBuilder::new(
+            0x00.try_into().unwrap(),
+            0x01.into(),
+            0x02,
+            0x03,
+            &[0x01; 0xFFFF],
+            0xFFFF,
+        );
+        assert_eq!(
+            command.serialize_to_vec(),
+            [
+                hex!("00 01 02 03 00 FFFF").as_slice(),
+                &[0x01; 0xFFFF],
+                &[0xFF, 0xFF]
+            ]
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>()
+        );
     }
 
     #[test]
