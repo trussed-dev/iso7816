@@ -619,72 +619,35 @@ mod test {
 
     #[test]
     fn builder() {
-        let command =
-            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 0x04);
+        let cla = 0.try_into().unwrap();
+        let ins = 1.into();
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x04);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 04"));
 
-        let command =
-            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 0x00);
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x00);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03"));
 
-        let command =
-            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 256);
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 256);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00"));
-        let command =
-            CommandBuilder::new(0x00.try_into().unwrap(), 0x01.into(), 0x02, 0x03, &[], 257);
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 257);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 0101"));
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[],
-            0xFFFF,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 FFFF"));
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x05, 0x06],
-            0x04,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x04);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06 04"));
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x05, 0x06],
-            0x00,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x00);
         assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06"));
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x05, 0x06],
-            0x100,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x100);
         assert_eq!(
             command.serialize_to_vec(),
             // Large LE also forces the data length to be extended (can't mix extended/non-extended)
             &hex!("00 01 02 03 00 00 02 05 06 01 00")
         );
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x01; 0x2AE],
-            0x100,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x100);
 
         assert_eq!(
             command.serialize_to_vec(),
@@ -699,14 +662,7 @@ mod test {
             .collect::<Vec<u8>>()
         );
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x01; 0x2AE],
-            0x01,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x01);
         assert_eq!(
             command.serialize_to_vec(),
             [
@@ -720,14 +676,7 @@ mod test {
             .collect::<Vec<u8>>()
         );
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x01; 0x2AE],
-            0x00,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x00);
         assert_eq!(
             command.serialize_to_vec(),
             [hex!("00 01 02 03 00 02AE").as_slice(), &[0x01; 0x2AE],]
@@ -737,14 +686,7 @@ mod test {
                 .collect::<Vec<u8>>()
         );
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x01; 0x2AE],
-            0xFF,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0xFF);
         assert_eq!(
             command.serialize_to_vec(),
             [
@@ -758,14 +700,7 @@ mod test {
             .collect::<Vec<u8>>()
         );
 
-        let command = CommandBuilder::new(
-            0x00.try_into().unwrap(),
-            0x01.into(),
-            0x02,
-            0x03,
-            &[0x01; 0xFFFF],
-            0xFFFF,
-        );
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0xFFFF], 0xFFFF);
         assert_eq!(
             command.serialize_to_vec(),
             [
@@ -777,6 +712,44 @@ mod test {
             .flatten()
             .copied()
             .collect::<Vec<u8>>()
+        );
+    }
+
+    #[test]
+    fn building_chained() {
+        let cla = 0x00.try_into().unwrap();
+        let ins = 0x01.into();
+        let mut buffer = [0; 4096];
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
+        let len = command.clone().serialize_into(&mut buffer, true).unwrap();
+        assert_eq!(&buffer[..len], &command.clone().serialize_to_vec());
+
+        //  without extended length
+        let len = command.clone().serialize_into(&mut buffer, false).unwrap();
+        assert_eq!(
+            &buffer[..len],
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0xFF).serialize_to_vec()
+        );
+
+        //  without extended length
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0);
+        let len = command.clone().serialize_into(&mut buffer, false).unwrap();
+        assert_eq!(
+            &buffer[..len],
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0).serialize_to_vec()
+        );
+
+        buffer = [0; 4096];
+
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[5; 200], 0);
+        let (len, rem) = command
+            .serialize_into(&mut buffer[..105], false)
+            .unwrap_err();
+        assert_eq!(len, 105);
+        assert_eq!(rem, CommandBuilder::new(cla, ins, 2, 3, &[5; 100], 0));
+        assert_eq!(
+            &buffer[..len],
+            &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec()
         );
     }
 
