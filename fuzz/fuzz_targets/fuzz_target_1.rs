@@ -40,10 +40,15 @@ fuzz_target!(|data: Input| {
         return;
     };
     let ins = instruction.into();
+    let command = CommandBuilder::new(class, ins, p1, p2, data, le);
+
+    // Test for the length information
+    {
+        command.clone().serialize_to_vec();
+    }
 
     let buffer = &mut [0; 4096][..buf_len.min(4096).max(128)];
 
-    let command = CommandBuilder::new(class, ins, p1, p2, data, le);
     match command.clone().serialize_into(buffer, supports_extended) {
         Ok(len) => {
             // dbg!(&buffer[..len][..len]);
