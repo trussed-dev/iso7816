@@ -54,10 +54,10 @@ fuzz_target!(|data: Input| {
             // dbg!(&buffer[..len][..len]);
             let view = CommandView::try_from(&buffer[..len]).unwrap();
             if !supports_extended {
-                assert!(view.data().len() <= 255);
+                assert!(view.data().len() <= 256);
                 assert!(!view.extended());
-                // Without extended support, le is truncated to 255 at max, and the response will come with command chaining
-                let command = CommandBuilder::new(class, ins, p1, p2, data, le.min(255));
+                // Without extended support, le is truncated to 256 at max, and the response will come with command chaining
+                let command = CommandBuilder::new(class, ins, p1, p2, data, le.min(256));
                 assert_eq!(command, view);
             } else {
                 assert_eq!(view, command);
@@ -87,7 +87,7 @@ fuzz_target!(|data: Input| {
                         } else {
                             // Without extended support, le is truncated to 255 at max, and the response will come with command chaining
                             let command =
-                                CommandBuilder::new(class, ins, p1, p2, data, le.min(255));
+                                CommandBuilder::new(class, ins, p1, p2, data, le.min(256));
                             assert_eq!(command, parsed.as_view());
                         }
                         return;
