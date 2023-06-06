@@ -183,7 +183,7 @@ impl<'a> CommandBuilder<'a> {
     fn header_data(&self, supports_extended_length: bool) -> BuildingHeaderData {
         /// Returns (data, len of data, and is_extended)
         fn serialize_data_len(len: u16, expected_len: u16) -> (heapless::Vec<u8, 3>, bool) {
-            match (len, expected_len > 255) {
+            match (len, expected_len > 256) {
                 (0, _) => (Default::default(), false),
                 (1..=255, false) => ([len as u8].as_slice().try_into().unwrap(), false),
                 _ => {
@@ -217,7 +217,7 @@ impl<'a> CommandBuilder<'a> {
         let le = if supports_extended_length {
             self.le
         } else {
-            self.le.min(255)
+            self.le.min(256)
         };
 
         // Safe to unwrap because of check in `new`
@@ -644,7 +644,7 @@ mod test {
         assert_eq!(
             command.serialize_to_vec(),
             // Large LE also forces the data length to be extended (can't mix extended/non-extended)
-            &hex!("00 01 02 03 00 00 02 05 06 01 00")
+            &hex!("00 01 02 03 02 05 06 00")
         );
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x100);
