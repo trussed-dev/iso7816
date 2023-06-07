@@ -195,14 +195,14 @@ impl<'a> CommandBuilder<'a> {
 
         fn serialize_expected_len(
             len: u16,
-            force_extended: bool,
+            lc_extended: bool,
             data_is_empty: bool,
         ) -> heapless::Vec<u8, 3> {
-            match (len, force_extended, data_is_empty) {
+            match (len, lc_extended, data_is_empty) {
                 (0, _, _) => Default::default(),
                 (1..=255, false, _) => [len as u8].as_slice().try_into().unwrap(),
                 (256, false, _) => [0].as_slice().try_into().unwrap(),
-                (_, _, false) => {
+                (_, true, false) => {
                     let l = len.to_be_bytes();
                     [l[0], l[1]].as_slice().try_into().unwrap()
                 }
@@ -210,6 +210,7 @@ impl<'a> CommandBuilder<'a> {
                     let l = len.to_be_bytes();
                     [0, l[0], l[1]].as_slice().try_into().unwrap()
                 }
+                (257.., false, false) => unreachable!("Can't have non extended Lc and extended Le"),
                 (_, true, true) => unreachable!("Can't have both no data and data extended length"),
             }
         }
@@ -221,10 +222,9 @@ impl<'a> CommandBuilder<'a> {
         };
 
         // Safe to unwrap because of check in `new`
-        let (data_len, data_len_extended) =
-            serialize_data_len(self.data.len().try_into().unwrap(), le);
+        let (data_len, lc_extended) = serialize_data_len(self.data.len().try_into().unwrap(), le);
 
-        let expected_data_len = serialize_expected_len(le, data_len_extended, self.data.is_empty());
+        let expected_data_len = serialize_expected_len(le, lc_extended, self.data.is_empty());
         BuildingHeaderData {
             le,
             data_len,
@@ -648,7 +648,6 @@ mod test {
         );
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x100);
-
         assert_eq!(
             command.serialize_to_vec(),
             [
@@ -728,7 +727,7 @@ mod test {
         let len = command.clone().serialize_into(&mut buffer, false).unwrap();
         assert_eq!(
             &buffer[..len],
-            &CommandBuilder::new(cla, ins, 2, 3, &[], 0xFF).serialize_to_vec()
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0x0100).serialize_to_vec()
         );
 
         //  without extended length
