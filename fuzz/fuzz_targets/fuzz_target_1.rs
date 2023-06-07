@@ -5,7 +5,37 @@ use libfuzzer_sys::fuzz_target;
 use arbitrary::Arbitrary;
 use iso7816::command::{class, Command, CommandBuilder, CommandView};
 
+use std::convert::Infallible;
 use std::iter::repeat;
+use std::ops::Deref;
+
+struct WriteMock {
+    buffer: [u8; 4096],
+    written: usize,
+    capacity: usize,
+}
+
+impl Deref for WriteMock {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.buffer[..self.written]
+    }
+}
+
+impl iso7816::command::Writer for WriteMock {
+    type Error = Infallible;
+    fn write(&mut self, data: &[u8]) -> Result<usize, Infallible> {
+        let available = self.capacity - self.written;
+        let written = available.min(data.len());
+        self.buffer[self.written..][..written].copy_from_slice(data);
+        self.written += written;
+        Ok(written)
+    }
+
+    fn remaining_len(&self) -> usize {
+        self.capacity - self.written
+    }
+}
 
 #[derive(Debug, Arbitrary)]
 struct Input<'a> {
@@ -47,12 +77,20 @@ fuzz_target!(|data: Input| {
         command.clone().serialize_to_vec();
     }
 
-    let buffer = &mut [0; 4096][..buf_len.min(4096).max(128)];
+    let mut buffer = WriteMock {
+        buffer: [0; 4096],
+        written: 0,
+        capacity: buf_len.min(4096).max(128),
+    };
 
-    match command.clone().serialize_into(buffer, supports_extended) {
-        Ok(len) => {
-            // dbg!(&buffer[..len][..len]);
-            let view = CommandView::try_from(&buffer[..len]).unwrap();
+    match command
+        .clone()
+        .serialize_into(&mut buffer, supports_extended)
+        .unwrap()
+    {
+        Ok(()) => {
+            // dbg!(&*buffer, buffer.len());
+            let view = CommandView::try_from(&*buffer).unwrap();
             if !supports_extended {
                 assert!(view.data().len() <= 256);
                 assert!(!view.extended());
@@ -63,8 +101,10 @@ fuzz_target!(|data: Input| {
                 assert_eq!(view, command);
             }
         }
-        Err((len, mut rem)) => {
-            // dbg!(&buffer[..len]);
+
+        Err(mut rem) => {
+            let len = buffer.len();
+            // dbg!(&*buffer, buffer.len());
             let mut parsed = Command::<4096>::try_from(&buffer[..len]).unwrap();
             if !supports_extended {
                 assert!(parsed.data().len() <= 255);
@@ -72,11 +112,15 @@ fuzz_target!(|data: Input| {
             }
             // Loop with arbitrary buflens forever
             for buflen in repeat(buf_lens.iter().chain([&128])).flatten() {
-                let buffer = &mut [0; 4096][..(*buflen).min(4096).max(128)];
-                match rem.serialize_into(buffer, supports_extended) {
-                    Ok(len) => {
-                        // dbg!(&buffer[..len]);
-                        let view = CommandView::try_from(&buffer[..len]).unwrap();
+                let mut buffer = WriteMock {
+                    buffer: [0; 4096],
+                    written: 0,
+                    capacity: (*buflen).min(4096).max(128),
+                };
+                match rem.serialize_into(&mut buffer, supports_extended).unwrap() {
+                    Ok(()) => {
+                        // dbg!(&*buffer, buffer.len());
+                        let view = CommandView::try_from(&*buffer).unwrap();
                         if !supports_extended {
                             assert!(view.data().len() <= 255);
                             assert!(!view.extended());
@@ -92,11 +136,10 @@ fuzz_target!(|data: Input| {
                         }
                         return;
                     }
-                    Err((len, new_rem)) => {
-                        // dbg!(&buffer[..len]);
+                    Err(new_rem) => {
                         rem = new_rem;
 
-                        let view = CommandView::try_from(&buffer[..len]).unwrap();
+                        let view = CommandView::try_from(&*buffer).unwrap();
                         if !supports_extended {
                             assert!(view.data().len() <= 255);
                             assert!(!view.extended());
