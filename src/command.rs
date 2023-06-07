@@ -4,6 +4,9 @@ pub mod class;
 pub mod instruction;
 pub use instruction::Instruction;
 
+mod writer;
+pub use writer::Writer;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Command<const S: usize> {
     class: class::Class,
@@ -247,27 +250,22 @@ impl<'a> CommandBuilder<'a> {
     #[cfg(any(feature = "std", test))]
     pub fn serialize_to_vec(self) -> Vec<u8> {
         let required_len = self.required_len();
-        let mut buffer = vec![0; required_len];
-        assert_eq!(
-            self.serialize_into(&mut buffer, true).unwrap(),
-            required_len,
-            "internal error, serialization should fill the buffer"
-        );
+        let mut buffer = Vec::with_capacity(required_len);
+        self.serialize_into(&mut buffer, true).unwrap().unwrap();
         buffer
     }
 
-    /// Serialize the command into the given buffer and return the length of data returned to the buffer.
-    ///
-    /// If the command does not fit in the buffer, fill the buffer with data and return another command
-    /// to be send containing the remaining data through command chaining
-    pub fn serialize_into(
+    /// - `Ok(Ok(()))` means that the command was successfully written
+    /// - `Ok(Err(command))` means that the writer ran out of space and that the command needed
+    /// - `Err(err)` means that there was an error from the writer
+    pub fn serialize_into<W: Writer>(
         self,
-        buf: &mut [u8],
+        writer: &mut W,
         supports_extended_length: bool,
-    ) -> Result<usize, (usize, Self)> {
+    ) -> Result<Result<(), Self>, W::Error> {
         const HEADER_LEN: usize = 4;
-        if buf.len() < HEADER_LEN {
-            return Err((0, self));
+        if writer.remaining_len() < HEADER_LEN {
+            return Ok(Err(self));
         }
 
         let BuildingHeaderData {
@@ -280,15 +278,14 @@ impl<'a> CommandBuilder<'a> {
         if !supports_extended_length {
             max_data_len = 255;
         }
-        let rem = &buf[HEADER_LEN..];
-        let available_data_len = rem
-            .len()
+
+        let available_data_len = (writer.remaining_len() - HEADER_LEN)
             .saturating_sub(data_len.len() + expected_data_len.len())
             .min(max_data_len);
         if available_data_len < self.data.len() {
             if available_data_len == 0 {
                 // Let's not support this case
-                return Err((0, self));
+                return Ok(Err(self));
             }
 
             let (send_now, send_later) = self.data.split_at(available_data_len);
@@ -310,22 +307,22 @@ impl<'a> CommandBuilder<'a> {
                 le,
             };
             // We know that the comman has enough space to be properly serialized
-            let sent = send_now
-                .serialize_into(buf, supports_extended_length)
+            send_now
+                .serialize_into(writer, supports_extended_length)?
                 .unwrap();
-            return Err((sent, send_later));
+            return Ok(Err(send_later));
         }
-        buf[0] = self.class.into_inner();
-        buf[1] = self.instruction.into();
-        buf[2] = self.p1;
-        buf[3] = self.p2;
+        writer.write_all(&[
+            self.class.into_inner(),
+            self.instruction.into(),
+            self.p1,
+            self.p2,
+        ])?;
 
-        let rem = &mut buf[HEADER_LEN..];
-        rem[..data_len.len()].copy_from_slice(&data_len);
-        rem[data_len.len()..][..self.data.len()].copy_from_slice(self.data);
-        rem[data_len.len() + self.data.len()..][..expected_data_len.len()]
-            .copy_from_slice(&expected_data_len);
-        Ok(HEADER_LEN + data_len.len() + self.data.len() + expected_data_len.len())
+        writer.write_all(&data_len)?;
+        writer.write_all(self.data)?;
+        writer.write_all(&expected_data_len)?;
+        Ok(Ok(()))
     }
 }
 
@@ -718,36 +715,52 @@ mod test {
     fn building_chained() {
         let cla = 0x00.try_into().unwrap();
         let ins = 0x01.into();
-        let mut buffer = [0; 4096];
+        let mut buffer = heapless::Vec::<u8, 4096>::new();
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
-        let len = command.clone().serialize_into(&mut buffer, true).unwrap();
-        assert_eq!(&buffer[..len], &command.clone().serialize_to_vec());
+        command
+            .clone()
+            .serialize_into(&mut buffer, true)
+            .unwrap()
+            .unwrap();
+        assert_eq!(&*buffer, &command.clone().serialize_to_vec());
 
+        buffer.clear();
         //  without extended length
-        let len = command.clone().serialize_into(&mut buffer, false).unwrap();
+        command
+            .clone()
+            .serialize_into(&mut buffer, false)
+            .unwrap()
+            .unwrap();
         assert_eq!(
-            &buffer[..len],
+            &*buffer,
             &CommandBuilder::new(cla, ins, 2, 3, &[], 0x0100).serialize_to_vec()
         );
 
+        buffer.clear();
         //  without extended length
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0);
-        let len = command.clone().serialize_into(&mut buffer, false).unwrap();
+        command
+            .clone()
+            .serialize_into(&mut buffer, false)
+            .unwrap()
+            .unwrap();
         assert_eq!(
-            &buffer[..len],
+            &*buffer,
             &CommandBuilder::new(cla, ins, 2, 3, &[], 0).serialize_to_vec()
         );
+        buffer.clear();
 
-        buffer = [0; 4096];
+        let mut buffer = heapless::Vec::<u8, 105>::new();
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[5; 200], 0);
-        let (len, rem) = command
-            .serialize_into(&mut buffer[..105], false)
+        let rem = command
+            .serialize_into(&mut buffer, false)
+            .unwrap()
             .unwrap_err();
-        assert_eq!(len, 105);
+        assert_eq!(buffer.len(), 105);
         assert_eq!(rem, CommandBuilder::new(cla, ins, 2, 3, &[5; 100], 0));
         assert_eq!(
-            &buffer[..len],
+            &*buffer,
             &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec()
         );
     }
