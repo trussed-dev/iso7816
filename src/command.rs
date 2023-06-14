@@ -5,7 +5,7 @@ pub mod instruction;
 pub use instruction::Instruction;
 
 mod writer;
-pub use writer::Writer;
+pub use writer::{BufferFull, Writer};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Command<const S: usize> {
@@ -162,6 +162,8 @@ pub struct CommandBuilder<'a> {
     le: u16,
 }
 
+const HEADER_LEN: usize = 4;
+
 impl<'a> CommandBuilder<'a> {
     /// Panics if data.len() > u16::MAX
     pub fn new(
@@ -239,8 +241,8 @@ impl<'a> CommandBuilder<'a> {
     /// Assumes extended length support
     ///
     /// This can be useful to get the necessary dimension for the buffer to provide to [serialize_into](Self::serialize_into)
-    pub fn required_len(&self) -> usize {
-        let header_data = self.header_data(true);
+    pub fn required_len(&self, supports_extended_length: bool) -> usize {
+        let header_data = self.header_data(supports_extended_length);
         let header_len = 4;
         let length_len = header_data.data_len.len() + header_data.expected_data_len.len();
         header_len + length_len + self.data.len()
@@ -248,24 +250,27 @@ impl<'a> CommandBuilder<'a> {
 
     /// Serialize into one vector with assuming support for extended length information
     #[cfg(any(feature = "std", test))]
-    pub fn serialize_to_vec(self) -> Vec<u8> {
-        let required_len = self.required_len();
+    pub fn serialize_to_vec(self, supports_extended_length: bool) -> Vec<u8> {
+        let required_len = self.required_len(supports_extended_length);
         let mut buffer = Vec::with_capacity(required_len);
-        self.serialize_into(&mut buffer, true).unwrap().unwrap();
+        self.serialize_into(&mut buffer, supports_extended_length)
+            .unwrap();
         buffer
     }
 
-    /// - `Ok(Ok(()))` means that the command was successfully written
-    /// - `Ok(Err(command))` means that the writer ran out of space and that the command needed
-    /// - `Err(err)` means that there was an error from the writer
-    pub fn serialize_into<W: Writer>(
-        self,
-        writer: &mut W,
+    /// Given the available length and the extended length support, split the command in 2 commands that use command chaining to be sent
+    ///
+    /// `None` means that the command can we serialized withinn `available_len` without needing Chaining
+    /// `Some(command, rem)` means that `command` can be sent within `available_len` and that `rem` must then be sent (for command chaining). Note that `should_split` should also be called on `rem` as more than 2 commands might be required.
+    ///
+    /// In certain conditions can panic if `available_len <= 9` since 9 is the minimum length required to encode the header and trailer of a command.
+    pub fn should_split(
+        &self,
+        available_len: usize,
         supports_extended_length: bool,
-    ) -> Result<Result<(), Self>, W::Error> {
-        const HEADER_LEN: usize = 4;
-        if writer.remaining_len() < HEADER_LEN {
-            return Ok(Err(self));
+    ) -> Option<(Self, Self)> {
+        if available_len < HEADER_LEN {
+            panic!("Commands cannot be encoded to fit in buffers smaller than 9 bytes");
         }
 
         let BuildingHeaderData {
@@ -279,39 +284,53 @@ impl<'a> CommandBuilder<'a> {
             max_data_len = 255;
         }
 
-        let available_data_len = (writer.remaining_len() - HEADER_LEN)
+        let available_data_len = (available_len - HEADER_LEN)
             .saturating_sub(data_len.len() + expected_data_len.len())
             .min(max_data_len);
-        if available_data_len < self.data.len() {
-            if available_data_len == 0 {
-                // Let's not support this case
-                return Ok(Err(self));
-            }
-
-            let (send_now, send_later) = self.data.split_at(available_data_len);
-
-            let send_now = Self {
-                class: self.class.as_chained(),
-                instruction: self.instruction,
-                p1: self.p1,
-                p2: self.p2,
-                data: send_now,
-                le: 0,
-            };
-            let send_later = Self {
-                class: self.class,
-                instruction: self.instruction,
-                p1: self.p1,
-                p2: self.p2,
-                data: send_later,
-                le,
-            };
-            // We know that the comman has enough space to be properly serialized
-            send_now
-                .serialize_into(writer, supports_extended_length)?
-                .unwrap();
-            return Ok(Err(send_later));
+        if available_data_len >= self.data.len() {
+            // slitting not necessary
+            return None;
         }
+
+        if available_data_len == 0 {
+            // Let's not support this case
+            panic!("Commands cannot be encoded to fit in buffers smaller than 9 bytes");
+        }
+
+        let (send_now, send_later) = self.data.split_at(available_data_len);
+
+        let send_now = Self {
+            class: self.class.as_chained(),
+            instruction: self.instruction,
+            p1: self.p1,
+            p2: self.p2,
+            data: send_now,
+            le: 0,
+        };
+        let send_later = Self {
+            class: self.class,
+            instruction: self.instruction,
+            p1: self.p1,
+            p2: self.p2,
+            data: send_later,
+            le,
+        };
+        Some((send_now, send_later))
+    }
+
+    /// This assumes that the writer has enough space to encode the APDU.
+    /// If that might not be the case, first use [`should_split`](Self::should_split)
+    pub fn serialize_into<W: Writer>(
+        self,
+        writer: &mut W,
+        supports_extended_length: bool,
+    ) -> Result<(), W::Error> {
+        let BuildingHeaderData {
+            data_len,
+            expected_data_len,
+            ..
+        } = self.header_data(supports_extended_length);
+
         writer.write_all(&[
             self.class.into_inner(),
             self.instruction.into(),
@@ -322,7 +341,7 @@ impl<'a> CommandBuilder<'a> {
         writer.write_all(&data_len)?;
         writer.write_all(self.data)?;
         writer.write_all(&expected_data_len)?;
-        Ok(Ok(()))
+        Ok(())
     }
 }
 
