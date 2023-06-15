@@ -255,6 +255,7 @@ impl<'a> CommandBuilder<'a> {
         let mut buffer = Vec::with_capacity(required_len);
         self.serialize_into(&mut buffer, supports_extended_length)
             .unwrap();
+        debug_assert_eq!(required_len, buffer.len());
         buffer
     }
 
