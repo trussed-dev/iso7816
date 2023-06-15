@@ -639,34 +639,40 @@ mod test {
         let cla = 0.try_into().unwrap();
         let ins = 1.into();
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x04);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 04"));
+        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 04"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x00);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03"));
+        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 256);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00"));
+        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 00"));
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 257);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 0101"));
+        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 00 0101"));
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 FFFF"));
+        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 00 FFFF"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x04);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06 04"));
+        assert_eq!(
+            command.serialize_to_vec(true),
+            &hex!("00 01 02 03 02 05 06 04")
+        );
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x00);
-        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06"));
+        assert_eq!(
+            command.serialize_to_vec(true),
+            &hex!("00 01 02 03 02 05 06")
+        );
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x100);
         assert_eq!(
-            command.serialize_to_vec(),
+            command.serialize_to_vec(true),
             // Large LE also forces the data length to be extended (can't mix extended/non-extended)
             &hex!("00 01 02 03 02 05 06 00")
         );
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x100);
         assert_eq!(
-            command.serialize_to_vec(),
+            command.serialize_to_vec(true),
             [
                 hex!("00 01 02 03 00 02AE").as_slice(),
                 &[0x01; 0x2AE],
@@ -680,7 +686,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x01);
         assert_eq!(
-            command.serialize_to_vec(),
+            command.serialize_to_vec(true),
             [
                 hex!("00 01 02 03 00 02AE").as_slice(),
                 &[0x01; 0x2AE],
@@ -694,7 +700,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x00);
         assert_eq!(
-            command.serialize_to_vec(),
+            command.serialize_to_vec(true),
             [hex!("00 01 02 03 00 02AE").as_slice(), &[0x01; 0x2AE],]
                 .into_iter()
                 .flatten()
@@ -704,7 +710,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0xFF);
         assert_eq!(
-            command.serialize_to_vec(),
+            command.serialize_to_vec(true),
             [
                 hex!("00 01 02 03 00 02AE").as_slice(),
                 &[0x01; 0x2AE],
@@ -718,7 +724,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0xFFFF], 0xFFFF);
         assert_eq!(
-            command.serialize_to_vec(),
+            command.serialize_to_vec(true),
             [
                 hex!("00 01 02 03 00 FFFF").as_slice(),
                 &[0x01; 0xFFFF],
@@ -737,51 +743,37 @@ mod test {
         let ins = 0x01.into();
         let mut buffer = heapless::Vec::<u8, 4096>::new();
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
-        command
-            .clone()
-            .serialize_into(&mut buffer, true)
-            .unwrap()
-            .unwrap();
-        assert_eq!(&*buffer, &command.clone().serialize_to_vec());
+        command.clone().serialize_into(&mut buffer, true).unwrap();
+        assert_eq!(&*buffer, &command.clone().serialize_to_vec(true));
 
         buffer.clear();
         //  without extended length
-        command
-            .clone()
-            .serialize_into(&mut buffer, false)
-            .unwrap()
-            .unwrap();
+        command.clone().serialize_into(&mut buffer, false).unwrap();
         assert_eq!(
             &*buffer,
-            &CommandBuilder::new(cla, ins, 2, 3, &[], 0x0100).serialize_to_vec()
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0x0100).serialize_to_vec(true)
         );
 
         buffer.clear();
         //  without extended length
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0);
-        command
-            .clone()
-            .serialize_into(&mut buffer, false)
-            .unwrap()
-            .unwrap();
+        command.clone().serialize_into(&mut buffer, false).unwrap();
         assert_eq!(
             &*buffer,
-            &CommandBuilder::new(cla, ins, 2, 3, &[], 0).serialize_to_vec()
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0).serialize_to_vec(true)
         );
         buffer.clear();
 
         let mut buffer = heapless::Vec::<u8, 105>::new();
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[5; 200], 0);
-        let rem = command
-            .serialize_into(&mut buffer, false)
-            .unwrap()
-            .unwrap_err();
+        let (command, rem) = command.should_split(buffer.capacity(), false).unwrap();
+        command.serialize_into(&mut buffer, false).unwrap();
         assert_eq!(buffer.len(), 105);
         assert_eq!(rem, CommandBuilder::new(cla, ins, 2, 3, &[5; 100], 0));
         assert_eq!(
             &*buffer,
-            &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec()
+            &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec(true)
         );
     }
 
