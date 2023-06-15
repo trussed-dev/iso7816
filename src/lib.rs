@@ -20,6 +20,7 @@ pub mod response;
 pub use aid::{Aid, App};
 pub use command::{Command, Instruction};
 pub use response::{Response, Status};
+pub mod tlv;
 
 #[cfg(test)]
 mod tests {
