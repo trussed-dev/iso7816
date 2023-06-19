@@ -1,18 +1,33 @@
-use core::convert::Infallible;
 use core::fmt::{Debug, Display};
-use core::mem::replace;
+use core::mem;
+
+pub trait Error: Debug + Display {
+    fn failed_serialization(cause: &'static str) -> Self;
+}
 
 #[derive(Debug)]
-pub struct BufferFull;
+pub enum BufferFull {
+    BufferFull,
+    Serialization(&'static str),
+}
+
+impl Error for BufferFull {
+    fn failed_serialization(cause: &'static str) -> Self {
+        Self::Serialization(cause)
+    }
+}
 
 impl Display for BufferFull {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Buffer is full")
+        match self {
+            BufferFull::BufferFull => f.write_str("Buffer is full"),
+            BufferFull::Serialization(cause) => f.write_str(cause),
+        }
     }
 }
 
 pub trait Writer {
-    type Error: Debug + Display;
+    type Error: Error;
 
     fn write(&mut self, data: &[u8]) -> Result<usize, Self::Error>;
     /// data must be smaller than [`remaining_len`](Writer::remaining_len)
@@ -31,10 +46,10 @@ impl<'a> Writer for &'a mut [u8] {
         let amt = data.len().min(self.len());
 
         if amt == 0 {
-            return Err(BufferFull);
+            return Err(BufferFull::BufferFull);
         }
 
-        let (a, b) = replace(self, &mut []).split_at_mut(amt);
+        let (a, b) = mem::take(self).split_at_mut(amt);
         a.copy_from_slice(&data[..amt]);
         *self = b;
         Ok(amt)
@@ -47,7 +62,7 @@ impl<const N: usize> Writer for heapless::Vec<u8, N> {
         let amt = data.len().min(self.capacity() - self.len());
 
         if amt == 0 {
-            return Err(BufferFull);
+            return Err(BufferFull::BufferFull);
         }
 
         self.extend_from_slice(&data[..amt]).unwrap();
@@ -57,12 +72,12 @@ impl<const N: usize> Writer for heapless::Vec<u8, N> {
 
 #[cfg(feature = "heapless_bytes")]
 impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
-    type Error = Infallible;
-    fn write(&mut self, data: &[u8]) -> Result<usize, Infallible> {
+    type Error = BufferFull;
+    fn write(&mut self, data: &[u8]) -> Result<usize, BufferFull> {
         let amt = data.len().min(self.capacity() - self.len());
 
         if amt == 0 {
-            return Err(BufferFull);
+            return Err(BufferFull::BufferFull);
         }
 
         self.extend_from_slice(&data[..amt]).unwrap();
@@ -70,10 +85,25 @@ impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
     }
 }
 
+#[derive(Debug)]
+pub struct SerializationError(&'static str);
+
+impl Display for SerializationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl Error for SerializationError {
+    fn failed_serialization(cause: &'static str) -> Self {
+        Self(cause)
+    }
+}
+
 #[cfg(any(feature = "std", test))]
 impl Writer for Vec<u8> {
-    type Error = Infallible;
-    fn write(&mut self, data: &[u8]) -> Result<usize, Infallible> {
+    type Error = SerializationError;
+    fn write(&mut self, data: &[u8]) -> Result<usize, SerializationError> {
         self.extend_from_slice(data);
         Ok(data.len())
     }

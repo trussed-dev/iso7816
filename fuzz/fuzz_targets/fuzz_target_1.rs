@@ -30,7 +30,7 @@ impl iso7816::command::Writer for WriteMock {
         self.buffer[self.written..][..written].copy_from_slice(&data[..written]);
         self.written += written;
         if written == 0 {
-            Err(BufferFull)
+            Err(BufferFull::BufferFull)
         } else {
             Ok(written)
         }

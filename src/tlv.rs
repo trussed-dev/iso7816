@@ -1,5 +1,7 @@
 //! BER-TLV writer and parser
 
+use crate::command::{writer::Error as _, DataSource, Writer};
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag([u8; 3]);
 
@@ -142,6 +144,48 @@ pub fn take_len(data: &[u8]) -> Option<(usize, &[u8])> {
         let l3 = *data.get(2)?;
         let len = u16::from_be_bytes([l2, l3]) as usize;
         Some((len, &data[3..]))
+    }
+}
+
+fn serialize_len(len: usize) -> Option<heapless::Vec<u8, 3>> {
+    let mut buf = heapless::Vec::new();
+    if let Ok(len) = u8::try_from(len) {
+        if len <= 0x7f {
+            buf.extend_from_slice(&[len]).ok();
+        } else {
+            buf.extend_from_slice(&[0x81, len]).ok();
+        }
+    } else if let Ok(len) = u16::try_from(len) {
+        let arr = len.to_be_bytes();
+        buf.extend_from_slice(&[0x82, arr[0], arr[1]]).ok();
+    } else {
+        return None;
+    }
+    Some(buf)
+}
+
+pub struct Tlv<S> {
+    tag: Tag,
+    data: S,
+}
+
+impl<W: Writer, S: DataSource<W>> DataSource<W> for Tlv<S> {
+    fn len(&self) -> usize {
+        let tag = self.tag.serialize();
+        let len = serialize_len(self.data.len())
+            .map(|l| l.len())
+            .unwrap_or_default();
+        tag.len() + len + self.data.len()
+    }
+
+    fn to_writer(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
+        writer.write_all(&self.tag.serialize())?;
+        writer.write_all(
+            &serialize_len(self.data.len()).ok_or_else(|| {
+                W::Error::failed_serialization("Data is longer than 0xFFFF bytes")
+            })?,
+        )?;
+        self.data.to_writer(writer)
     }
 }
 
