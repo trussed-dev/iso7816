@@ -4,8 +4,11 @@ pub mod class;
 pub mod instruction;
 pub use instruction::Instruction;
 
-mod writer;
+pub mod writer;
 pub use writer::{BufferFull, Writer};
+
+mod datasource;
+pub use datasource::DataSource;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Command<const S: usize> {
