@@ -738,6 +738,12 @@ mod test {
             .copied()
             .collect::<Vec<u8>>()
         );
+
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[1, 2, 3, 4], 294);
+        assert_eq!(
+            command.serialize_to_vec(true),
+            &hex!("00 01 02 03 00 00 04 01020304 0126")
+        );
     }
 
     #[test]
