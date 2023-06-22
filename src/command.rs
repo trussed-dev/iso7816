@@ -15,8 +15,8 @@ pub struct Command<const S: usize> {
     class: class::Class,
     instruction: Instruction,
 
-    p1: u8,
-    p2: u8,
+    pub p1: u8,
+    pub p2: u8,
 
     /// The main reason this is modeled as Bytes and not
     /// a fixed array is for serde purposes.
@@ -63,14 +63,6 @@ impl<const S: usize> Command<S> {
         }
     }
 
-    pub fn p1(&self) -> u8 {
-        self.p1
-    }
-
-    pub fn p2(&self) -> u8 {
-        self.p2
-    }
-
     pub fn extended(&self) -> bool {
         self.extended
     }
@@ -113,8 +105,8 @@ pub struct CommandView<'a> {
     class: class::Class,
     instruction: Instruction,
 
-    p1: u8,
-    p2: u8,
+    pub p1: u8,
+    pub p2: u8,
 
     data: &'a [u8],
 
@@ -139,14 +131,6 @@ impl<'a> CommandView<'a> {
         self.le
     }
 
-    pub fn p1(&self) -> u8 {
-        self.p1
-    }
-
-    pub fn p2(&self) -> u8 {
-        self.p2
-    }
-
     pub fn extended(&self) -> bool {
         self.extended
     }
@@ -157,8 +141,8 @@ pub struct CommandBuilder<'a> {
     class: class::Class,
     instruction: Instruction,
 
-    p1: u8,
-    p2: u8,
+    pub p1: u8,
+    pub p2: u8,
 
     data: &'a [u8],
 
