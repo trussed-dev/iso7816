@@ -4,7 +4,7 @@
 extern crate delog;
 // generate_macros!();
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Interface {
     Contact,
     Contactless,
