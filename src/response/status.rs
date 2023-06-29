@@ -1,8 +1,5 @@
 use core::fmt::{Debug, Display};
 
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
-pub struct Status(pub u16);
-
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Debug)]
 #[non_exhaustive]
 pub enum StatusKind {
@@ -11,7 +8,9 @@ pub enum StatusKind {
     MoreAvailable(u8),
 
     DataUnchangedWarning,
+    /// Triggering by the card
     WarningTriggering(u8),
+    /// Triggering by the card
     ErrorTriggering(u8),
     CorruptedData,
     UnexpectedEof,
@@ -22,6 +21,7 @@ pub enum StatusKind {
 
     DataChangedWarning,
     FilledByLastWrite,
+    /// Meaning depends on the command
     WarningCounter(u8),
     DataChangedError,
     MemoryFailure,
@@ -63,6 +63,15 @@ pub enum StatusKind {
     Error,
 }
 
+/// Status bytes from a response APDU.
+///
+/// This structure can represent any status bytes from a response APDU. For convinience, constants are provided for pattern matching.
+///
+/// The [`kind`](Status::kind) method can be used to obtain an Enum that can be used to make matching more convenient but is not exhaustive.
+#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(transparent)]
+pub struct Status(pub u16);
+
 impl Default for Status {
     fn default() -> Self {
         Self::SUCCESS
@@ -79,65 +88,117 @@ impl Debug for Status {
 }
 
 impl Status {
+    /// `0x9000`
     pub const SUCCESS: Self = Self(0x9000);
 
     const MORE_AVAILABLE_MASK: u16 = 0x6100;
 
+    /// `0x6200`
     pub const DATA_UNCHANGED_WARNING: Self = Self(0x6200);
     const WARNING_TRIGGERING_LOWER: u16 = 0x6202;
     const WARNING_TRIGGERING_UPPER: u16 = 0x6280;
     const ERROR_TRIGGERING_LOWER: u16 = 0x6402;
     const ERROR_TRIGGERING_UPPER: u16 = 0x6480;
+    /// `0x6281`
     pub const CORRUPTED_DATA: Self = Self(0x6281);
+    /// `0x6282`
     pub const UNEXPECTED_EOF: Self = Self(0x6282);
+    /// `0x6283`
     pub const SELECT_FILE_DEACTIVATED: Self = Self(0x6283);
+    /// `0x6284`
     pub const FILE_CONTROL_INFO_BADLY_FORMATTED: Self = Self(0x6284);
+    /// `0x6285`
     pub const SELECT_FILE_IN_TERMINATION_STATE: Self = Self(0x6285);
+    /// `0x6286`
     pub const NO_INPUT_DATA_FROM_SENSOR: Self = Self(0x6286);
 
+    /// `0x6300`
     pub const DATA_CHANGED_WARNING: Self = Self(0x6300);
+    /// `0x6381`
     pub const FILLED_BY_LAST_WRITE: Self = Self(0x6381);
     const WARNING_COUNTER_MASK: u16 = 0x63C0;
 
+    /// `0x6500`
     pub const DATA_CHANGED_ERROR: Self = Self(0x6500);
+    /// `0x6581`
     pub const MEMORY_FAILURE: Self = Self(0x6581);
 
+    /// `0x6800`
     pub const CLA_NOT_SUPPORTED: Self = Self(0x6800);
+    /// `0x6881`
     pub const LOGICAL_CHANNEL_NOT_SUPPORTED: Self = Self(0x6881);
+    /// `0x6882`
     pub const SECURE_MESSAGING_NOT_SUPPORTED: Self = Self(0x6882);
+    /// `0x6883`
     pub const LAST_COMMANND_OF_CHAIN_EXPECTED: Self = Self(0x6883);
+    /// `0x6884`
     pub const COMMAND_CHAINING_NOT_SUPPORTED: Self = Self(0x6884);
 
+    /// `0x6900`
     pub const COMMAND_NOT_ALLOWED: Self = Self(0x6900);
+    /// `0x6981`
     pub const COMMAND_INCOMPATIBLE_FILE_STRUCTURE: Self = Self(0x6981);
+    /// `0x6982`
     pub const SECURITY_STATUS_NOT_SATISFIED: Self = Self(0x6982);
+    /// `0x6983`
     pub const AUTHENTICATION_METHOD_BLOCKED: Self = Self(0x6983);
+    /// `0x6984`
     pub const REFERENCE_DATA_NOT_USABLE: Self = Self(0x6984);
+    /// `0x6985`
     pub const CONDITION_OF_USE_NOT_SATISFIED: Self = Self(0x6985);
+    /// `0x6986`
     pub const COMMAND_NOT_ALLOWED_NO_EF: Self = Self(0x6986);
+    /// `0x6987`
     pub const EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING: Self = Self(0x6987);
+    /// `0x6988`
     pub const INCORRECT_SECURE_MESSAGING_DATA_OBJECTS: Self = Self(0x6988);
 
+    /// `0x6A00`
     pub const WRONG_PARAMETERS_NO_INFO: Self = Self(0x6A00);
+    /// `0x6A80`
     pub const INCORRECT_PARAMETERS: Self = Self(0x6A80);
+    /// `0x6A81`
     pub const FUCNTION_NOT_SUPPORTED: Self = Self(0x6A81);
+    /// `0x6A82`
     pub const FILE_OR_APP_NOT_FOUND: Self = Self(0x6A82);
+    /// `0x6A83`
     pub const RECORD_NOT_FOUND: Self = Self(0x6A83);
+    /// `0x6A84`
     pub const NOT_ENOUGH_MEMORY_IN_FILE: Self = Self(0x6A84);
+    /// `0x6A85`
     pub const NC_INCONSISTENT_WITH_TLV: Self = Self(0x6A85);
+    /// `0x6A86`
     pub const INCORRECT_P1P2: Self = Self(0x6A86);
+    /// `0x6A87`
     pub const NC_INCONSISTENT_WITH_P1P2: Self = Self(0x6A87);
+    /// `0x6A88`
     pub const REFERENCE_NOT_FOUND: Self = Self(0x6A88);
+    /// `0x6A89`
     pub const FILE_ALREADY_EXISTS: Self = Self(0x6A89);
+    /// `0x6A8A`
     pub const DF_NAME_ALREADY_EXISTS: Self = Self(0x6A8A);
 
+    /// `0x6B00`
     pub const WRONG_PARAMETERS: Self = Self(0x6B00);
 
     const WRONG_LE_FIELD_MASK: u16 = 0x6C00;
 
+    /// `0x6D00`
     pub const INSTRUCTION_NOT_SUPPORTED_OR_INVALID: Self = Self(0x6D00);
+    /// `0x6E00`
     pub const CLASS_NOT_SUPPORTED: Self = Self(0x6E00);
+    /// `0x6F00`
     pub const ERROR: Self = Self(0x6F00);
+
+    /// Create a status representing a wrong LE field (`0x6CXX`)
+    pub const fn wrong_le_field(available_bytes: u8) -> Self {
+        Self(Self::WRONG_LE_FIELD_MASK | available_bytes as u16)
+    }
+
+    /// Create a status indicating that more data is available (`0x61XX`)
+    pub const fn more_available(value: u16) -> Self {
+        Self(Self::MORE_AVAILABLE_MASK | value)
+    }
 
     pub const fn as_more_available(self) -> Option<u8> {
         if self.0 | Self::MORE_AVAILABLE_MASK == Self::MORE_AVAILABLE_MASK {
@@ -148,10 +209,6 @@ impl Status {
     }
     pub const fn is_more_available(self) -> bool {
         self.as_more_available().is_some()
-    }
-
-    pub const fn more_available(value: u16) -> Self {
-        Self(Self::MORE_AVAILABLE_MASK | value)
     }
 
     pub const fn is_warning(self) -> bool {
@@ -200,14 +257,14 @@ impl Status {
         }
     }
 
-    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    /// Value must be `0x02 <= value < 0x81`, otherwise panics
     pub const fn warning_triggering(value: u8) -> Self {
         match Self::try_warning_triggering(value) {
             Ok(s) => s,
             Err(_) => panic!("Expected 0x02 <= value < 0x81"),
         }
     }
-    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    /// Value must be `0x02 <= value < 0x81`, otherwise errors
     pub const fn try_warning_triggering(value: u8) -> Result<Self, TriggeringError> {
         if value <= 0x80 && value >= 0x02 {
             Ok(Self(Self::WARNING_TRIGGERING_LOWER | value as u16))
@@ -228,6 +285,9 @@ impl Status {
         }
     }
 
+    /// Create a warning counter status. (Meaning depends on the command)
+    ///
+    /// Value must be `0x00 <= value < 0x0F`, otherwise errors
     pub const fn try_warning_counter(value: u8) -> Result<Self, WarningCounterError> {
         if value <= 0xF {
             Ok(Self(Self::WARNING_COUNTER_MASK | value as u16))
@@ -235,7 +295,7 @@ impl Status {
             Err(WarningCounterError)
         }
     }
-    /// Value must be 0x00 <= value < 0x0F, otherwise panics
+    /// Value must be `0x00 <= value < 0x0F`, otherwise panics
     pub const fn warning_counter(value: u8) -> Self {
         match Self::try_warning_counter(value) {
             Ok(s) => s,
@@ -256,14 +316,14 @@ impl Status {
         }
     }
 
-    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    /// Value must be `0x02 <= value < 0x81`, otherwise panics
     pub const fn error_triggering(value: u8) -> Self {
         match Self::try_error_triggering(value) {
             Ok(s) => s,
             Err(_) => panic!("Expected 0x02 <= value < 0x81"),
         }
     }
-    /// Value must be 0x02 <= value < 0x81, otherwise panics
+    /// Value must be `0x02 <= value < 0x81`, otherwise errors
     pub const fn try_error_triggering(value: u8) -> Result<Self, TriggeringError> {
         if value <= 0x80 && value >= 0x02 {
             Ok(Self(Self::ERROR_TRIGGERING_LOWER | value as u16))
@@ -282,10 +342,6 @@ impl Status {
     pub const fn is_wrong_le_field(self) -> bool {
         self.as_wrong_le_field().is_some()
     }
-    pub const fn wrong_le_field(available_bytes: u8) -> Self {
-        Self(Self::WRONG_LE_FIELD_MASK | available_bytes as u16)
-    }
-
     pub const fn as_bytes(self) -> [u8; 2] {
         self.0.to_be_bytes()
     }
