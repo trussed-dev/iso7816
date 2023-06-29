@@ -81,7 +81,7 @@ impl Default for Status {
 impl Debug for Status {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.kind() {
-            Some(k) => k.fmt(f),
+            Some(k) => write!(f, "{k:?} ({:02x})", self.0),
             None => write!(f, "Unknown {:02x}", self.0),
         }
     }
