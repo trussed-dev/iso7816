@@ -1,5 +1,5 @@
 mod status;
-pub use status::{Status, TriggeringError, WarningCounterError};
+pub use status::{Status, StatusKind, TriggeringError, WarningCounterError};
 
 use crate::Data;
 

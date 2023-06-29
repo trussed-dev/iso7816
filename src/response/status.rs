@@ -3,6 +3,66 @@ use core::fmt::{Debug, Display};
 #[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Status(pub u16);
 
+#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Debug)]
+#[non_exhaustive]
+pub enum StatusKind {
+    Success,
+
+    MoreAvailable(u8),
+
+    DataUnchangedWarning,
+    WarningTriggering(u8),
+    ErrorTriggering(u8),
+    CorruptedData,
+    UnexpectedEof,
+    SelectFileDeactivated,
+    FileControlInfoBadlyFormatted,
+    SelectFileInTerminationState,
+    NoInputDataFromSensor,
+
+    DataChangedWarning,
+    FilledByLastWrite,
+    WarningCounter(u8),
+    DataChangedError,
+    MemoryFailure,
+
+    ClaNotSupported,
+    LogicalChannelNotSupported,
+    SecureMessagingNotSupported,
+    LastCommanndOfChainExpected,
+    CommandChainingNotSupported,
+
+    CommandNotAllowed,
+    CommandIncompatibleFileStructure,
+    SecurityStatusNotSatisfied,
+    AuthenticationMethodBlocked,
+    ReferenceDataNotUsable,
+    ConditionOfUseNotSatisfied,
+    CommandNotAllowedNoEf,
+    ExectedSecureMessagingDataObjectsMissing,
+    IncorrectSecureMessagingDataObjects,
+
+    WrongParametersNoInfo,
+    IncorrectParameters,
+    FucntionNotSupported,
+    FileOrAppNotFound,
+    RecordNotFound,
+    NotEnoughMemoryInFile,
+    NcInconsistentWithTlv,
+    IncorrectP1p2,
+    NcInconsistentWithP1p2,
+    ReferenceNotFound,
+    FileAlreadyExists,
+    DfNameAlreadyExists,
+
+    WrongParameters,
+
+    WrongLeField(u8),
+    InstructionNotSupportedOrInvalid,
+    ClassNotSupported,
+    Error,
+}
+
 impl Default for Status {
     fn default() -> Self {
         Self::SUCCESS
@@ -11,94 +71,9 @@ impl Default for Status {
 
 impl Debug for Status {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match *self {
-            Self::SUCCESS => f.write_str("SUCCESS"),
-
-            Self::DATA_UNCHANGED_WARNING => f.write_str("DATA_UNCHANGED_WARNING"),
-            Self::CORRUPTED_DATA => f.write_str("CORRUPTED_DATA"),
-            Self::UNEXPECTED_EOF => f.write_str("UNEXPECTED_EOF"),
-            Self::SELECT_FILE_DEACTIVATED => f.write_str("SELECT_FILE_DEACTIVATED"),
-            Self::FILE_CONTROL_INFO_BADLY_FORMATTED => {
-                f.write_str("FILE_CONTROL_INFO_BADLY_FORMATTED")
-            }
-            Self::SELECT_FILE_IN_TERMINATION_STATE => {
-                f.write_str("SELECT_FILE_IN_TERMINATION_STATE")
-            }
-            Self::NO_INPUT_DATA_FROM_SENSOR => f.write_str("NO_INPUT_DATA_FROM_SENSOR"),
-
-            Self::DATA_CHANGED_WARNING => f.write_str("DATA_CHANGED_WARNING"),
-            Self::FILLED_BY_LAST_WRITE => f.write_str("FILLED_BY_LAST_WRITE"),
-
-            Self::DATA_CHANGED_ERROR => f.write_str("DATA_CHANGED_ERROR"),
-            Self::MEMORY_FAILURE => f.write_str("MEMORY_FAILURE"),
-
-            Self::CLA_NOT_SUPPORTED => f.write_str("CLA_NOT_SUPPORTED"),
-            Self::LOGICAL_CHANNEL_NOT_SUPPORTED => f.write_str("LOGICAL_CHANNEL_NOT_SUPPORTED"),
-            Self::SECURE_MESSAGING_NOT_SUPPORTED => f.write_str("SECURE_MESSAGING_NOT_SUPPORTED"),
-            Self::LAST_COMMANND_OF_CHAIN_EXPECTED => f.write_str("LAST_COMMANND_OF_CHAIN_EXPECTED"),
-            Self::COMMAND_CHAINING_NOT_SUPPORTED => f.write_str("COMMAND_CHAINING_NOT_SUPPORTED"),
-
-            Self::COMMAND_NOT_ALLOWED => f.write_str("COMMAND_NOT_ALLOWED"),
-            Self::COMMAND_INCOMPATIBLE_FILE_STRUCTURE => {
-                f.write_str("COMMAND_INCOMPATIBLE_FILE_STRUCTURE")
-            }
-            Self::SECURITY_STATUS_NOT_SATISFIED => f.write_str("SECURITY_STATUS_NOT_SATISFIED"),
-            Self::AUTHENTICATION_METHOD_BLOCKED => f.write_str("AUTHENTICATION_METHOD_BLOCKED"),
-            Self::REFERENCE_DATA_NOT_USABLE => f.write_str("REFERENCE_DATA_NOT_USABLE"),
-            Self::CONDITION_OF_USE_NOT_SATISFIED => f.write_str("CONDITION_OF_USE_NOT_SATISFIED"),
-            Self::COMMAND_NOT_ALLOWED_NO_EF => f.write_str("COMMAND_NOT_ALLOWED_NO_EF"),
-            Self::EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING => {
-                f.write_str("EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING")
-            }
-            Self::INCORRECT_SECURE_MESSAGING_DATA_OBJECTS => {
-                f.write_str("INCORRECT_SECURE_MESSAGING_DATA_OBJECTS")
-            }
-
-            Self::WRONG_PARAMETERS_NO_INFO => f.write_str("WRONG_PARAMETERS_NO_INFO"),
-            Self::INCORRECT_PARAMETERS => f.write_str("INCORRECT_PARAMETERS"),
-            Self::FUCNTION_NOT_SUPPORTED => f.write_str("FUCNTION_NOT_SUPPORTED"),
-            Self::FILE_OR_APP_NOT_FOUND => f.write_str("FILE_OR_APP_NOT_FOUND"),
-            Self::RECORD_NOT_FOUND => f.write_str("RECORD_NOT_FOUND"),
-            Self::NOT_ENOUGH_MEMORY_IN_FILE => f.write_str("NOT_ENOUGH_MEMORY_IN_FILE"),
-            Self::NC_INCONSISTENT_WITH_TLV => f.write_str("NC_INCONSISTENT_WITH_TLV"),
-            Self::INCORRECT_P1P2 => f.write_str("INCORRECT_P1P2"),
-            Self::NC_INCONSISTENT_WITH_P1P2 => f.write_str("NC_INCONSISTENT_WITH_P1P2"),
-            Self::REFERENCE_NOT_FOUND => f.write_str("REFERENCE_NOT_FOUND"),
-            Self::FILE_ALREADY_EXISTS => f.write_str("FILE_ALREADY_EXISTS"),
-            Self::DF_NAME_ALREADY_EXISTS => f.write_str("DF_NAME_ALREADY_EXISTS"),
-
-            Self::WRONG_PARAMETERS => f.write_str("WRONG_PARAMETERS"),
-
-            Self::INSTRUCTION_NOT_SUPPORTED_OR_INVALID => {
-                f.write_str("INSTRUCTION_NOT_SUPPORTED_OR_INVALID")
-            }
-            Self::CLASS_NOT_SUPPORTED => f.write_str("CLASS_NOT_SUPPORTED"),
-            Self::ERROR => f.write_str("ERROR"),
-            _ => {
-                if let Some(c) = self.as_warning_triggering() {
-                    f.debug_struct("WARNING_TRIGGERING")
-                        .field("query_length", &c)
-                        .finish()
-                } else if let Some(c) = self.as_error_triggering() {
-                    f.debug_struct("ERROR_TRIGGERING")
-                        .field("query_length", &c)
-                        .finish()
-                } else if let Some(a) = self.as_more_available() {
-                    f.debug_struct("MORE_AVAILABLE")
-                        .field("available", &a)
-                        .finish()
-                } else if let Some(a) = self.as_wrong_le_field() {
-                    f.debug_struct("WRONG_LE_FIELD")
-                        .field("available", &a)
-                        .finish()
-                } else if let Some(c) = self.as_warning_counter() {
-                    f.debug_struct("WARNING_COUNTER")
-                        .field("counter", &c)
-                        .finish()
-                } else {
-                    f.write_fmt(format_args!("{:02x}", self.0))
-                }
-            }
+        match self.kind() {
+            Some(k) => k.fmt(f),
+            None => write!(f, "Unknown {:02x}", self.0),
         }
     }
 }
@@ -176,7 +151,7 @@ impl Status {
     }
 
     pub const fn more_available(value: u16) -> Self {
-        Self(Self::MORE_AVAILABLE_MASK | value as u16)
+        Self(Self::MORE_AVAILABLE_MASK | value)
     }
 
     pub const fn is_warning(self) -> bool {
@@ -313,6 +288,88 @@ impl Status {
 
     pub const fn as_bytes(self) -> [u8; 2] {
         self.0.to_be_bytes()
+    }
+
+    pub const fn as_u16(self) -> u16 {
+        self.0
+    }
+
+    pub fn kind(self) -> Option<StatusKind> {
+        Some(match self {
+            Self::SUCCESS => StatusKind::Success,
+
+            Self::DATA_UNCHANGED_WARNING => StatusKind::DataUnchangedWarning,
+            Self::CORRUPTED_DATA => StatusKind::CorruptedData,
+            Self::UNEXPECTED_EOF => StatusKind::UnexpectedEof,
+            Self::SELECT_FILE_DEACTIVATED => StatusKind::SelectFileDeactivated,
+            Self::FILE_CONTROL_INFO_BADLY_FORMATTED => StatusKind::FileControlInfoBadlyFormatted,
+            Self::SELECT_FILE_IN_TERMINATION_STATE => StatusKind::SelectFileInTerminationState,
+            Self::NO_INPUT_DATA_FROM_SENSOR => StatusKind::NoInputDataFromSensor,
+
+            Self::DATA_CHANGED_WARNING => StatusKind::DataChangedWarning,
+            Self::FILLED_BY_LAST_WRITE => StatusKind::FilledByLastWrite,
+
+            Self::DATA_CHANGED_ERROR => StatusKind::DataChangedError,
+            Self::MEMORY_FAILURE => StatusKind::MemoryFailure,
+
+            Self::CLA_NOT_SUPPORTED => StatusKind::ClaNotSupported,
+            Self::LOGICAL_CHANNEL_NOT_SUPPORTED => StatusKind::LogicalChannelNotSupported,
+            Self::SECURE_MESSAGING_NOT_SUPPORTED => StatusKind::SecureMessagingNotSupported,
+            Self::LAST_COMMANND_OF_CHAIN_EXPECTED => StatusKind::LastCommanndOfChainExpected,
+            Self::COMMAND_CHAINING_NOT_SUPPORTED => StatusKind::CommandChainingNotSupported,
+
+            Self::COMMAND_NOT_ALLOWED => StatusKind::CommandNotAllowed,
+            Self::COMMAND_INCOMPATIBLE_FILE_STRUCTURE => {
+                StatusKind::CommandIncompatibleFileStructure
+            }
+            Self::SECURITY_STATUS_NOT_SATISFIED => StatusKind::SecurityStatusNotSatisfied,
+            Self::AUTHENTICATION_METHOD_BLOCKED => StatusKind::AuthenticationMethodBlocked,
+            Self::REFERENCE_DATA_NOT_USABLE => StatusKind::ReferenceDataNotUsable,
+            Self::CONDITION_OF_USE_NOT_SATISFIED => StatusKind::ConditionOfUseNotSatisfied,
+            Self::COMMAND_NOT_ALLOWED_NO_EF => StatusKind::CommandNotAllowedNoEf,
+            Self::EXECTED_SECURE_MESSAGING_DATA_OBJECTS_MISSING => {
+                StatusKind::ExectedSecureMessagingDataObjectsMissing
+            }
+            Self::INCORRECT_SECURE_MESSAGING_DATA_OBJECTS => {
+                StatusKind::IncorrectSecureMessagingDataObjects
+            }
+
+            Self::WRONG_PARAMETERS_NO_INFO => StatusKind::WrongParametersNoInfo,
+            Self::INCORRECT_PARAMETERS => StatusKind::IncorrectParameters,
+            Self::FUCNTION_NOT_SUPPORTED => StatusKind::FucntionNotSupported,
+            Self::FILE_OR_APP_NOT_FOUND => StatusKind::FileOrAppNotFound,
+            Self::RECORD_NOT_FOUND => StatusKind::RecordNotFound,
+            Self::NOT_ENOUGH_MEMORY_IN_FILE => StatusKind::NotEnoughMemoryInFile,
+            Self::NC_INCONSISTENT_WITH_TLV => StatusKind::NcInconsistentWithTlv,
+            Self::INCORRECT_P1P2 => StatusKind::IncorrectP1p2,
+            Self::NC_INCONSISTENT_WITH_P1P2 => StatusKind::NcInconsistentWithP1p2,
+            Self::REFERENCE_NOT_FOUND => StatusKind::ReferenceNotFound,
+            Self::FILE_ALREADY_EXISTS => StatusKind::FileAlreadyExists,
+            Self::DF_NAME_ALREADY_EXISTS => StatusKind::DfNameAlreadyExists,
+
+            Self::WRONG_PARAMETERS => StatusKind::WrongParameters,
+
+            Self::INSTRUCTION_NOT_SUPPORTED_OR_INVALID => {
+                StatusKind::InstructionNotSupportedOrInvalid
+            }
+            Self::CLASS_NOT_SUPPORTED => StatusKind::ClassNotSupported,
+            Self::ERROR => StatusKind::Error,
+            _ => {
+                if let Some(c) = self.as_warning_triggering() {
+                    StatusKind::WarningTriggering(c)
+                } else if let Some(c) = self.as_error_triggering() {
+                    StatusKind::ErrorTriggering(c)
+                } else if let Some(a) = self.as_more_available() {
+                    StatusKind::MoreAvailable(a)
+                } else if let Some(a) = self.as_wrong_le_field() {
+                    StatusKind::WrongLeField(a)
+                } else if let Some(c) = self.as_warning_counter() {
+                    StatusKind::WarningCounter(c)
+                } else {
+                    return None;
+                }
+            }
+        })
     }
 }
 
