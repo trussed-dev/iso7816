@@ -455,6 +455,18 @@ impl From<u16> for Status {
     }
 }
 
+impl From<[u8; 2]> for Status {
+    fn from(value: [u8; 2]) -> Self {
+        u16::from_be_bytes(value).into()
+    }
+}
+
+impl From<(u8, u8)> for Status {
+    fn from((v1, v2): (u8, u8)) -> Self {
+        [v1, v2].into()
+    }
+}
+
 impl From<Status> for u16 {
     fn from(value: Status) -> Self {
         value.0
