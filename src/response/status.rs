@@ -44,7 +44,7 @@ pub enum StatusKind {
 
     WrongParametersNoInfo,
     IncorrectParameters,
-    FucntionNotSupported,
+    FunctionNotSupported,
     FileOrAppNotFound,
     RecordNotFound,
     NotEnoughMemoryInFile,
@@ -158,7 +158,7 @@ impl Status {
     /// `0x6A80`
     pub const INCORRECT_PARAMETERS: Self = Self(0x6A80);
     /// `0x6A81`
-    pub const FUCNTION_NOT_SUPPORTED: Self = Self(0x6A81);
+    pub const FUNCTION_NOT_SUPPORTED: Self = Self(0x6A81);
     /// `0x6A82`
     pub const FILE_OR_APP_NOT_FOUND: Self = Self(0x6A82);
     /// `0x6A83`
@@ -392,7 +392,7 @@ impl Status {
 
             Self::WRONG_PARAMETERS_NO_INFO => StatusKind::WrongParametersNoInfo,
             Self::INCORRECT_PARAMETERS => StatusKind::IncorrectParameters,
-            Self::FUCNTION_NOT_SUPPORTED => StatusKind::FucntionNotSupported,
+            Self::FUNCTION_NOT_SUPPORTED => StatusKind::FunctionNotSupported,
             Self::FILE_OR_APP_NOT_FOUND => StatusKind::FileOrAppNotFound,
             Self::RECORD_NOT_FOUND => StatusKind::RecordNotFound,
             Self::NOT_ENOUGH_MEMORY_IN_FILE => StatusKind::NotEnoughMemoryInFile,
