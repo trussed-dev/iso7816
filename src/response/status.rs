@@ -10,8 +10,6 @@ pub enum StatusKind {
     DataUnchangedWarning,
     /// Triggering by the card
     WarningTriggering(u8),
-    /// Triggering by the card
-    ErrorTriggering(u8),
     CorruptedData,
     UnexpectedEof,
     SelectFileDeactivated,
@@ -23,6 +21,12 @@ pub enum StatusKind {
     FilledByLastWrite,
     /// Meaning depends on the command
     WarningCounter(u8),
+
+    ExecutionError,
+    ImmediateResponseRequired,
+    /// Triggering by the card
+    ErrorTriggering(u8),
+
     DataChangedError,
     MemoryFailure,
 
@@ -111,6 +115,11 @@ impl Status {
     pub const SELECT_FILE_IN_TERMINATION_STATE: Self = Self(0x6285);
     /// `0x6286`
     pub const NO_INPUT_DATA_FROM_SENSOR: Self = Self(0x6286);
+
+    /// 0x6400
+    pub const EXECUTION_ERROR: Self = Self(0x6400);
+    /// 0x6401
+    pub const IMMEDIATE_RESPONSE_REQUIRED: Self = Self(0x6401);
 
     /// `0x6300`
     pub const DATA_CHANGED_WARNING: Self = Self(0x6300);
@@ -364,6 +373,9 @@ impl Status {
 
             Self::DATA_CHANGED_WARNING => StatusKind::DataChangedWarning,
             Self::FILLED_BY_LAST_WRITE => StatusKind::FilledByLastWrite,
+
+            Self::EXECUTION_ERROR => StatusKind::ExecutionError,
+            Self::IMMEDIATE_RESPONSE_REQUIRED => StatusKind::ImmediateResponseRequired,
 
             Self::DATA_CHANGED_ERROR => StatusKind::DataChangedError,
             Self::MEMORY_FAILURE => StatusKind::MemoryFailure,
