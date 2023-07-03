@@ -30,6 +30,8 @@ pub enum StatusKind {
     DataChangedError,
     MemoryFailure,
 
+    WrongLength,
+
     ClaNotSupported,
     LogicalChannelNotSupported,
     SecureMessagingNotSupported,
@@ -100,8 +102,10 @@ impl Status {
     /// `0x6200`
     pub const DATA_UNCHANGED_WARNING: Self = Self(0x6200);
     const WARNING_TRIGGERING_LOWER: u16 = 0x6202;
+    const WARNING_TRIGGERING_MASK: u16 = 0x6200;
     const WARNING_TRIGGERING_UPPER: u16 = 0x6280;
     const ERROR_TRIGGERING_LOWER: u16 = 0x6402;
+    const ERROR_TRIGGERING_MASK: u16 = 0x6400;
     const ERROR_TRIGGERING_UPPER: u16 = 0x6480;
     /// `0x6281`
     pub const CORRUPTED_DATA: Self = Self(0x6281);
@@ -131,6 +135,9 @@ impl Status {
     pub const DATA_CHANGED_ERROR: Self = Self(0x6500);
     /// `0x6581`
     pub const MEMORY_FAILURE: Self = Self(0x6581);
+
+    /// `0x6700`
+    pub const WRONG_LENGTH: Self = Self(0x6700);
 
     /// `0x6800`
     pub const CLA_NOT_SUPPORTED: Self = Self(0x6800);
@@ -205,12 +212,12 @@ impl Status {
     }
 
     /// Create a status indicating that more data is available (`0x61XX`)
-    pub const fn more_available(value: u16) -> Self {
-        Self(Self::MORE_AVAILABLE_MASK | value)
+    pub const fn more_available(value: u8) -> Self {
+        Self(Self::MORE_AVAILABLE_MASK | value as u16)
     }
 
     pub const fn as_more_available(self) -> Option<u8> {
-        if self.0 | Self::MORE_AVAILABLE_MASK == Self::MORE_AVAILABLE_MASK {
+        if self.0 & 0xFF00 == Self::MORE_AVAILABLE_MASK {
             Some((self.0 & 0x00FF) as u8)
         } else {
             None
@@ -226,26 +233,18 @@ impl Status {
 
     /// The proccessing raised a warning and did not change state
     pub const fn is_warning_without_modification(self) -> bool {
-        self.0 | 0x6200 == 0x6200
+        (self.0 & 0xFF00) == 0x6200
     }
     /// The proccessing raised a warning and changed state
     pub const fn is_warning_with_modification(self) -> bool {
-        self.0 | 0x6300 == 0x6300
+        (self.0 & 0xFF00) == 0x6300
     }
 
     pub const fn is_execution_error(self) -> bool {
-        self.0 | 0x6400 == 0x6400 || self.0 | 0x6500 == 0x6500 || self.0 | 0x6600 == 0x6600
+        self.0 >= 0x6400 && self.0 <= 0x6600
     }
     pub const fn is_checking_error(self) -> bool {
-        self.0 | 0x6700 == 0x6700
-            || self.0 | 0x6800 == 0x6800
-            || self.0 | 0x6900 == 0x6900
-            || self.0 | 0x6A00 == 0x6A00
-            || self.0 | 0x6B00 == 0x6B00
-            || self.0 | 0x6C00 == 0x6C00
-            || self.0 | 0x6D00 == 0x6D00
-            || self.0 | 0x6E00 == 0x6E00
-            || self.0 | 0x6F00 == 0x6F00
+        self.0 >= 0x6700 && self.0 <= 0x6F00
     }
 
     pub const fn is_error(self) -> bool {
@@ -276,7 +275,7 @@ impl Status {
     /// Value must be `0x02 <= value < 0x81`, otherwise errors
     pub const fn try_warning_triggering(value: u8) -> Result<Self, TriggeringError> {
         if value <= 0x80 && value >= 0x02 {
-            Ok(Self(Self::WARNING_TRIGGERING_LOWER | value as u16))
+            Ok(Self(Self::WARNING_TRIGGERING_MASK | value as u16))
         } else {
             Err(TriggeringError)
         }
@@ -287,8 +286,8 @@ impl Status {
     }
 
     pub const fn as_warning_counter(self) -> Option<u8> {
-        if self.0 | Self::WARNING_COUNTER_MASK == Self::WARNING_COUNTER_MASK {
-            Some((self.0 | 0x00F) as u8)
+        if self.0 & Self::WARNING_COUNTER_MASK == Self::WARNING_COUNTER_MASK {
+            Some((self.0 & 0x00F) as u8)
         } else {
             None
         }
@@ -335,14 +334,14 @@ impl Status {
     /// Value must be `0x02 <= value < 0x81`, otherwise errors
     pub const fn try_error_triggering(value: u8) -> Result<Self, TriggeringError> {
         if value <= 0x80 && value >= 0x02 {
-            Ok(Self(Self::ERROR_TRIGGERING_LOWER | value as u16))
+            Ok(Self(Self::ERROR_TRIGGERING_MASK | value as u16))
         } else {
             Err(TriggeringError)
         }
     }
 
     pub const fn as_wrong_le_field(self) -> Option<u8> {
-        if self.0 | Self::WRONG_LE_FIELD_MASK == Self::WRONG_LE_FIELD_MASK {
+        if self.0 & Self::WRONG_LE_FIELD_MASK == Self::WRONG_LE_FIELD_MASK {
             Some((self.0 & 0x00FF) as u8)
         } else {
             None
@@ -379,6 +378,8 @@ impl Status {
 
             Self::DATA_CHANGED_ERROR => StatusKind::DataChangedError,
             Self::MEMORY_FAILURE => StatusKind::MemoryFailure,
+
+            Self::WRONG_LENGTH => StatusKind::WrongLength,
 
             Self::CLA_NOT_SUPPORTED => StatusKind::ClaNotSupported,
             Self::LOGICAL_CHANNEL_NOT_SUPPORTED => StatusKind::LogicalChannelNotSupported,
@@ -488,5 +489,76 @@ impl From<Status> for u16 {
 impl From<Status> for [u8; 2] {
     fn from(value: Status) -> Self {
         value.as_bytes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn categories() {
+        assert!(!Status::SUCCESS.is_more_available());
+        assert!(!Status::SUCCESS.is_warning());
+        assert!(!Status::SUCCESS.is_warning_without_modification());
+        assert!(!Status::SUCCESS.is_warning_with_modification());
+        assert!(!Status::SUCCESS.is_execution_error());
+        assert!(!Status::SUCCESS.is_checking_error());
+        assert!(!Status::SUCCESS.is_error());
+        assert!(!Status::SUCCESS.is_warning_triggering());
+        assert!(!Status::SUCCESS.is_error_triggering());
+        assert!(!Status::SUCCESS.is_wrong_le_field());
+        assert!(Status::DATA_UNCHANGED_WARNING.is_warning());
+        assert!(Status::DATA_UNCHANGED_WARNING.is_warning_without_modification());
+        assert!(!Status::DATA_UNCHANGED_WARNING.is_warning_with_modification());
+        assert!(!Status::DATA_UNCHANGED_WARNING.is_error());
+
+        assert!(Status::DATA_CHANGED_WARNING.is_warning());
+        assert!(!Status::DATA_CHANGED_WARNING.is_warning_without_modification());
+        assert!(Status::DATA_CHANGED_WARNING.is_warning_with_modification());
+
+        assert!(Status::WRONG_LENGTH.is_checking_error());
+        assert!(Status::WRONG_LENGTH.is_error());
+        assert!(!Status::WRONG_LENGTH.is_execution_error());
+        assert!(!Status::WRONG_LENGTH.is_warning());
+        assert!(!Status::WRONG_LENGTH.is_wrong_le_field());
+
+        assert!(Status::DATA_CHANGED_ERROR.is_error());
+        assert!(Status::DATA_CHANGED_ERROR.is_execution_error());
+        assert!(!Status::DATA_CHANGED_ERROR.is_error_triggering());
+    }
+
+    #[test]
+    fn constructors() {
+        for i in 0..u8::MAX {
+            let wrong_le = Status::wrong_le_field(i);
+            assert!(wrong_le.is_wrong_le_field());
+            assert_eq!(wrong_le.as_wrong_le_field().unwrap(), i);
+
+            let more = Status::more_available(i);
+            assert!(more.is_more_available());
+            assert_eq!(more.as_more_available().unwrap(), i);
+        }
+
+        for i in 2..0x81 {
+            let trigg = Status::warning_triggering(i);
+            assert!(trigg.is_warning_triggering());
+            assert_eq!(trigg.as_warning_triggering().unwrap(), i);
+
+            let trigg = Status::error_triggering(i);
+            assert!(trigg.is_error_triggering());
+            assert_eq!(trigg.as_error_triggering().unwrap(), i);
+        }
+
+        for i in 0..0x0F {
+            let count = Status::warning_counter(i);
+            assert!(count.is_warning_counter());
+            assert_eq!(count.as_warning_counter().unwrap(), i);
+        }
+    }
+    #[test]
+    fn convert() {
+        assert_eq!(Status::SUCCESS.as_u16(), 0x9000);
+        assert_eq!(Status::SUCCESS.as_bytes(), [0x90, 0x00]);
     }
 }
