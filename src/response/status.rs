@@ -492,6 +492,13 @@ impl From<Status> for [u8; 2] {
     }
 }
 
+impl TryFrom<Status> for StatusKind {
+    type Error = Status;
+    fn try_from(value: Status) -> Result<Self, Status> {
+        value.kind().ok_or(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
