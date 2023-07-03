@@ -33,7 +33,7 @@ pub enum StatusKind {
     ClaNotSupported,
     LogicalChannelNotSupported,
     SecureMessagingNotSupported,
-    LastCommanndOfChainExpected,
+    LastCommandOfChainExpected,
     CommandChainingNotSupported,
 
     CommandNotAllowed,
@@ -139,7 +139,7 @@ impl Status {
     /// `0x6882`
     pub const SECURE_MESSAGING_NOT_SUPPORTED: Self = Self(0x6882);
     /// `0x6883`
-    pub const LAST_COMMANND_OF_CHAIN_EXPECTED: Self = Self(0x6883);
+    pub const LAST_COMMAND_OF_CHAIN_EXPECTED: Self = Self(0x6883);
     /// `0x6884`
     pub const COMMAND_CHAINING_NOT_SUPPORTED: Self = Self(0x6884);
 
@@ -383,7 +383,7 @@ impl Status {
             Self::CLA_NOT_SUPPORTED => StatusKind::ClaNotSupported,
             Self::LOGICAL_CHANNEL_NOT_SUPPORTED => StatusKind::LogicalChannelNotSupported,
             Self::SECURE_MESSAGING_NOT_SUPPORTED => StatusKind::SecureMessagingNotSupported,
-            Self::LAST_COMMANND_OF_CHAIN_EXPECTED => StatusKind::LastCommanndOfChainExpected,
+            Self::LAST_COMMAND_OF_CHAIN_EXPECTED => StatusKind::LastCommandOfChainExpected,
             Self::COMMAND_CHAINING_NOT_SUPPORTED => StatusKind::CommandChainingNotSupported,
 
             Self::COMMAND_NOT_ALLOWED => StatusKind::CommandNotAllowed,
