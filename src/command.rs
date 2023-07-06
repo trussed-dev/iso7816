@@ -281,7 +281,7 @@ impl<'a, D: DataSource + ?Sized> CommandBuilder<'a, D> {
 
     /// This assumes that the writer has enough space to encode the APDU.
     /// If that might not be the case, first use [`should_split`](Self::should_split)
-    pub fn serialize_into<W: Writer>(self, writer: &mut W) -> Result<(), W::Error>
+    pub fn serialize_into<W: Writer>(&self, writer: &mut W) -> Result<(), W::Error>
     where
         D: DataStream<W>,
     {
@@ -416,6 +416,22 @@ impl<'a> CommandBuilder<'a, [u8]> {
             supports_extended_length: self.supports_extended_length,
         };
         Some((send_now, send_later))
+    }
+}
+
+impl<'a, D: DataSource + ?Sized> DataSource for CommandBuilder<'a, D> {
+    fn len(&self) -> usize {
+        self.required_len()
+    }
+
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl<'a, W: Writer, D: DataStream<W> + ?Sized> DataStream<W> for CommandBuilder<'a, D> {
+    fn to_writer(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
+        self.serialize_into(writer)
     }
 }
 
