@@ -227,6 +227,10 @@ impl<'a> CommandBuilder<'a> {
         }
     }
 
+    pub fn data(&self) -> &'a [u8] {
+        self.data
+    }
+
     fn header_data(&self) -> BuildingHeaderData {
         /// Returns (data, len of data, and is_extended)
         fn serialize_data_len(len: u16, expected_len: u16) -> (heapless::Vec<u8, 3>, bool) {
