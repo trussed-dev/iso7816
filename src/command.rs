@@ -136,7 +136,7 @@ impl<'a> CommandView<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct CommandBuilder<'a, D: ?Sized> {
     class: class::Class,
     instruction: Instruction,
@@ -148,6 +148,20 @@ pub struct CommandBuilder<'a, D: ?Sized> {
 
     le: u16,
     supports_extended_length: bool,
+}
+
+impl<'a, D: ?Sized> Clone for CommandBuilder<'a, D> {
+    fn clone(&self) -> Self {
+        Self {
+            class: self.class,
+            instruction: self.instruction,
+            p1: self.p1,
+            p2: self.p2,
+            data: self.data,
+            le: self.le,
+            supports_extended_length: self.supports_extended_length,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -311,7 +325,7 @@ struct BuildingHeaderData {
     expected_data_len: heapless::Vec<u8, 3>,
 }
 
-impl<'a, 'b, D: PartialEq<[u8]>> PartialEq<CommandView<'a>> for CommandBuilder<'b, D> {
+impl<'a, 'b, D: PartialEq<[u8]> + ?Sized> PartialEq<CommandView<'a>> for CommandBuilder<'b, D> {
     fn eq(&self, other: &CommandView<'a>) -> bool {
         let Self {
             class,
@@ -435,7 +449,7 @@ impl<'a, W: Writer, D: DataStream<W> + ?Sized> DataStream<W> for CommandBuilder<
     }
 }
 
-impl<'a, 'b, D: PartialEq<[u8]>> PartialEq<CommandBuilder<'a, D>> for CommandView<'b> {
+impl<'a, 'b, D: PartialEq<[u8]> + ?Sized> PartialEq<CommandBuilder<'a, D>> for CommandView<'b> {
     fn eq(&self, other: &CommandBuilder<'a, D>) -> bool {
         other == self
     }
