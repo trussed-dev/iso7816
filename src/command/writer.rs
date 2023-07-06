@@ -55,6 +55,16 @@ impl<'a> Writer for &'a mut [u8] {
         Ok(amt)
     }
 }
+impl<'a> IntoWriter for &'a mut [u8] {
+    type Writer = Self;
+    fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
+        if self.len() < to_write {
+            Err(BufferFull::BufferFull)
+        } else {
+            Ok(self)
+        }
+    }
+}
 
 impl<const N: usize> Writer for heapless::Vec<u8, N> {
     type Error = BufferFull;
@@ -67,6 +77,16 @@ impl<const N: usize> Writer for heapless::Vec<u8, N> {
 
         self.extend_from_slice(&data[..amt]).unwrap();
         Ok(amt)
+    }
+}
+impl<const N: usize> IntoWriter for heapless::Vec<u8, N> {
+    type Writer = Self;
+    fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
+        if N - self.len() < to_write {
+            Err(BufferFull::BufferFull)
+        } else {
+            Ok(self)
+        }
     }
 }
 
@@ -82,6 +102,18 @@ impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
 
         self.extend_from_slice(&data[..amt]).unwrap();
         Ok(amt)
+    }
+}
+
+#[cfg(feature = "heapless_bytes")]
+impl<const N: usize> IntoWriter for heapless_bytes::Bytes<N> {
+    type Writer = Self;
+    fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
+        if N - self.len() < to_write {
+            Err(BufferFull::BufferFull)
+        } else {
+            Ok(self)
+        }
     }
 }
 
@@ -107,4 +139,17 @@ impl Writer for Vec<u8> {
         self.extend_from_slice(data);
         Ok(data.len())
     }
+}
+
+#[cfg(any(feature = "std", test))]
+impl IntoWriter for Vec<u8> {
+    type Writer = Self;
+    fn into_writer(self, _to_write: usize) -> Result<Self, SerializationError> {
+        Ok(self)
+    }
+}
+
+pub trait IntoWriter {
+    type Writer: Writer;
+    fn into_writer(self, to_write: usize) -> Result<Self::Writer, <Self::Writer as Writer>::Error>;
 }
