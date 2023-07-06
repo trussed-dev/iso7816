@@ -870,6 +870,25 @@ mod test {
     }
 
     #[test]
+    fn nested_commands() {
+        let cla = 0x00.try_into().unwrap();
+        let ins = 0x01.into();
+        let mut buffer = heapless::Vec::<u8, 4096>::new();
+        let inner = CommandBuilder::new(cla, ins, 1, 2, &hex!("FFFEFDFCFBFA"), 0x10);
+        let outer = CommandBuilder::new(cla, 0xAA.into(), 3, 4, &inner, 0x20);
+        outer.serialize_into(&mut buffer).unwrap();
+        #[rustfmt::skip]
+        assert_eq!(
+            &*buffer,
+            hex!("
+                00 AA 0304 0C
+                   00 01 01 02 06  FFFEFDFCFBFA 10 
+                20"
+            )
+        );
+    }
+
+    #[test]
     fn lengths_4s() {
         let data = &[0x02, 0xB6, 0x00, 0x00];
         let lengths = parse_lengths(data).expect("failed to parse lengths");
