@@ -158,3 +158,20 @@ impl TryFrom<u8> for Range {
         Ok(range)
     }
 }
+
+pub const ZERO_CLA: Class = Class {
+    cla: 0,
+    range: Range::Interindustry(Interindustry::First),
+};
+
+/// Cla = 0x80
+pub const NO_SM_CLA: Class = Class {
+    cla: 0x80,
+    range: Range::Proprietary,
+};
+
+/// Cla = 0x84
+pub const SM_CLA: Class = Class {
+    cla: 0x84,
+    range: Range::Proprietary,
+};
