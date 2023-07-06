@@ -17,6 +17,22 @@ pub trait DataStream<W: super::Writer>: DataSource {
     fn to_writer(&self, writer: &mut W) -> Result<(), W::Error>;
 }
 
+impl<const N: usize> DataSource for [u8; N] {
+    fn len(&self) -> usize {
+        N
+    }
+
+    fn is_empty(&self) -> bool {
+        N == 0
+    }
+}
+
+impl<W: super::Writer, const N: usize> DataStream<W> for [u8; N] {
+    fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
+        writer.write_all(self)
+    }
+}
+
 impl DataSource for [u8] {
     fn len(&self) -> usize {
         <[u8]>::len(self)

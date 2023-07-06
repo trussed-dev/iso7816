@@ -859,7 +859,10 @@ mod test {
         command.serialize_into(&mut buffer).unwrap();
         assert_eq!(buffer.len(), 105);
         rem.supports_extended_length = true;
-        assert_eq!(rem, CommandBuilder::new(cla, ins, 2, 3, &[5; 100], 0));
+        assert_eq!(
+            rem,
+            CommandBuilder::new(cla, ins, 2, 3, [5; 100].as_slice(), 0)
+        );
         assert_eq!(
             &*buffer,
             &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec()
