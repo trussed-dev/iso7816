@@ -147,12 +147,38 @@ pub struct CommandBuilder<'a> {
     data: &'a [u8],
 
     le: u16,
+    supports_extended_length: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct ChainedCommandIterator<'a> {
+    command: Option<CommandBuilder<'a>>,
+    available_len: usize,
+}
+
+impl<'a> Iterator for ChainedCommandIterator<'a> {
+    type Item = CommandBuilder<'a>;
+
+    fn next(&mut self) -> Option<CommandBuilder<'a>> {
+        let Some(next) = self.command.take() else {
+            return None;
+        };
+
+        if let Some((cur, next)) = next.should_split(self.available_len) {
+            self.command = Some(next);
+            Some(cur)
+        } else {
+            Some(next)
+        }
+    }
 }
 
 const HEADER_LEN: usize = 4;
 
 impl<'a> CommandBuilder<'a> {
     /// Panics if data.len() > u16::MAX
+    ///
+    /// Assumes that extended length is supported
     pub fn new(
         class: class::Class,
         instruction: instruction::Instruction,
@@ -169,10 +195,39 @@ impl<'a> CommandBuilder<'a> {
             p2,
             data,
             le,
+            supports_extended_length: true,
         }
     }
 
-    fn header_data(&self, supports_extended_length: bool) -> BuildingHeaderData {
+    /// Panics if data.len() > u16::MAX
+    ///
+    /// Assumes that extended length is supported
+    pub fn new_non_extended(
+        class: class::Class,
+        instruction: instruction::Instruction,
+        p1: u8,
+        p2: u8,
+        data: &'a [u8],
+        le: u16,
+        buffer_len: Option<usize>,
+    ) -> ChainedCommandIterator {
+        assert!(data.len() <= u16::MAX as usize);
+        ChainedCommandIterator {
+            command: Some(Self {
+                class,
+                instruction,
+                p1,
+                p2,
+                data,
+                le,
+                supports_extended_length: false,
+            }),
+            // default to u8::max for data, 5 bytes for the header, 1 for the trailer
+            available_len: buffer_len.unwrap_or(255 + 5 + 1),
+        }
+    }
+
+    fn header_data(&self) -> BuildingHeaderData {
         /// Returns (data, len of data, and is_extended)
         fn serialize_data_len(len: u16, expected_len: u16) -> (heapless::Vec<u8, 3>, bool) {
             match (len, expected_len > 256) {
@@ -207,7 +262,7 @@ impl<'a> CommandBuilder<'a> {
             }
         }
 
-        let le = if supports_extended_length {
+        let le = if self.supports_extended_length {
             self.le
         } else {
             self.le.min(256)
@@ -228,8 +283,8 @@ impl<'a> CommandBuilder<'a> {
     /// Assumes extended length support
     ///
     /// This can be useful to get the necessary dimension for the buffer to provide to [serialize_into](Self::serialize_into)
-    pub fn required_len(&self, supports_extended_length: bool) -> usize {
-        let header_data = self.header_data(supports_extended_length);
+    pub fn required_len(&self) -> usize {
+        let header_data = self.header_data();
         let header_len = 4;
         let length_len = header_data.data_len.len() + header_data.expected_data_len.len();
         header_len + length_len + self.data.len()
@@ -237,11 +292,10 @@ impl<'a> CommandBuilder<'a> {
 
     /// Serialize into one vector with assuming support for extended length information
     #[cfg(any(feature = "std", test))]
-    pub fn serialize_to_vec(self, supports_extended_length: bool) -> Vec<u8> {
-        let required_len = self.required_len(supports_extended_length);
+    pub fn serialize_to_vec(self) -> Vec<u8> {
+        let required_len = self.required_len();
         let mut buffer = Vec::with_capacity(required_len);
-        self.serialize_into(&mut buffer, supports_extended_length)
-            .unwrap();
+        self.serialize_into(&mut buffer).unwrap();
         debug_assert_eq!(required_len, buffer.len());
         buffer
     }
@@ -252,11 +306,7 @@ impl<'a> CommandBuilder<'a> {
     /// `Some(command, rem)` means that `command` can be sent within `available_len` and that `rem` must then be sent (for command chaining). Note that `should_split` should also be called on `rem` as more than 2 commands might be required.
     ///
     /// In certain conditions can panic if `available_len <= 9` since 9 is the minimum length required to encode the header and trailer of a command.
-    pub fn should_split(
-        &self,
-        available_len: usize,
-        supports_extended_length: bool,
-    ) -> Option<(Self, Self)> {
+    pub fn should_split(&self, available_len: usize) -> Option<(Self, Self)> {
         if available_len < HEADER_LEN {
             panic!("Commands cannot be encoded to fit in buffers smaller than 9 bytes");
         }
@@ -265,10 +315,10 @@ impl<'a> CommandBuilder<'a> {
             le,
             data_len,
             expected_data_len,
-        } = self.header_data(supports_extended_length);
+        } = self.header_data();
 
         let mut max_data_len = u16::MAX as usize;
-        if !supports_extended_length {
+        if !self.supports_extended_length {
             max_data_len = 255;
         }
 
@@ -294,6 +344,7 @@ impl<'a> CommandBuilder<'a> {
             p2: self.p2,
             data: send_now,
             le: 0,
+            supports_extended_length: self.supports_extended_length,
         };
         let send_later = Self {
             class: self.class,
@@ -302,22 +353,19 @@ impl<'a> CommandBuilder<'a> {
             p2: self.p2,
             data: send_later,
             le,
+            supports_extended_length: self.supports_extended_length,
         };
         Some((send_now, send_later))
     }
 
     /// This assumes that the writer has enough space to encode the APDU.
     /// If that might not be the case, first use [`should_split`](Self::should_split)
-    pub fn serialize_into<W: Writer>(
-        self,
-        writer: &mut W,
-        supports_extended_length: bool,
-    ) -> Result<(), W::Error> {
+    pub fn serialize_into<W: Writer>(self, writer: &mut W) -> Result<(), W::Error> {
         let BuildingHeaderData {
             data_len,
             expected_data_len,
             ..
-        } = self.header_data(supports_extended_length);
+        } = self.header_data();
 
         writer.write_all(&[
             self.class.into_inner(),
@@ -348,6 +396,7 @@ impl<'a, 'b> PartialEq<CommandView<'a>> for CommandBuilder<'b> {
             p2,
             data,
             le,
+            supports_extended_length: _,
         } = self;
         class == &other.class
             && instruction == &other.instruction
@@ -626,40 +675,34 @@ mod test {
         let cla = 0.try_into().unwrap();
         let ins = 1.into();
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x04);
-        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 04"));
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 04"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x00);
-        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03"));
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 256);
-        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 00"));
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00"));
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 257);
-        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 00 0101"));
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 0101"));
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
-        assert_eq!(command.serialize_to_vec(true), &hex!("00 01 02 03 00 FFFF"));
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 FFFF"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x04);
-        assert_eq!(
-            command.serialize_to_vec(true),
-            &hex!("00 01 02 03 02 05 06 04")
-        );
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06 04"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x00);
-        assert_eq!(
-            command.serialize_to_vec(true),
-            &hex!("00 01 02 03 02 05 06")
-        );
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 02 05 06"));
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x100);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             // Large LE also forces the data length to be extended (can't mix extended/non-extended)
             &hex!("00 01 02 03 02 05 06 00")
         );
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x100);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             [
                 hex!("00 01 02 03 00 02AE").as_slice(),
                 &[0x01; 0x2AE],
@@ -673,7 +716,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x01);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             [
                 hex!("00 01 02 03 00 02AE").as_slice(),
                 &[0x01; 0x2AE],
@@ -687,7 +730,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x00);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             [hex!("00 01 02 03 00 02AE").as_slice(), &[0x01; 0x2AE],]
                 .into_iter()
                 .flatten()
@@ -697,7 +740,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0xFF);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             [
                 hex!("00 01 02 03 00 02AE").as_slice(),
                 &[0x01; 0x2AE],
@@ -711,7 +754,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0xFFFF], 0xFFFF);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             [
                 hex!("00 01 02 03 00 FFFF").as_slice(),
                 &[0x01; 0xFFFF],
@@ -725,7 +768,7 @@ mod test {
 
         let command = CommandBuilder::new(cla, ins, 2, 3, &[1, 2, 3, 4], 294);
         assert_eq!(
-            command.serialize_to_vec(true),
+            command.serialize_to_vec(),
             &hex!("00 01 02 03 00 00 04 01020304 0126")
         );
     }
@@ -736,37 +779,48 @@ mod test {
         let ins = 0x01.into();
         let mut buffer = heapless::Vec::<u8, 4096>::new();
         let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0xFFFF);
-        command.clone().serialize_into(&mut buffer, true).unwrap();
-        assert_eq!(&*buffer, &command.clone().serialize_to_vec(true));
+        command.clone().serialize_into(&mut buffer).unwrap();
+        assert_eq!(&*buffer, &command.clone().serialize_to_vec());
 
         buffer.clear();
         //  without extended length
-        command.clone().serialize_into(&mut buffer, false).unwrap();
+        let command =
+            CommandBuilder::new_non_extended(cla, ins, 2, 3, &[], 0xFFFF, Some(buffer.capacity()))
+                .next()
+                .unwrap();
+        command.clone().serialize_into(&mut buffer).unwrap();
         assert_eq!(
             &*buffer,
-            &CommandBuilder::new(cla, ins, 2, 3, &[], 0x0100).serialize_to_vec(true)
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0x0100).serialize_to_vec()
         );
 
         buffer.clear();
         //  without extended length
-        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0);
-        command.clone().serialize_into(&mut buffer, false).unwrap();
+        let command =
+            CommandBuilder::new_non_extended(cla, ins, 2, 3, &[], 0, Some(buffer.capacity()))
+                .next()
+                .unwrap();
+        command.serialize_into(&mut buffer).unwrap();
         assert_eq!(
             &*buffer,
-            &CommandBuilder::new(cla, ins, 2, 3, &[], 0).serialize_to_vec(true)
+            &CommandBuilder::new(cla, ins, 2, 3, &[], 0).serialize_to_vec()
         );
         buffer.clear();
 
         let mut buffer = heapless::Vec::<u8, 105>::new();
 
-        let command = CommandBuilder::new(cla, ins, 2, 3, &[5; 200], 0);
-        let (command, rem) = command.should_split(buffer.capacity(), false).unwrap();
-        command.serialize_into(&mut buffer, false).unwrap();
+        let mut command_iter =
+            CommandBuilder::new_non_extended(cla, ins, 2, 3, &[5; 200], 0, Some(buffer.capacity()));
+        let command = command_iter.next().unwrap();
+        let mut rem = command_iter.next().unwrap();
+        assert!(command_iter.next().is_none());
+        command.serialize_into(&mut buffer).unwrap();
         assert_eq!(buffer.len(), 105);
+        rem.supports_extended_length = true;
         assert_eq!(rem, CommandBuilder::new(cla, ins, 2, 3, &[5; 100], 0));
         assert_eq!(
             &*buffer,
-            &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec(true)
+            &CommandBuilder::new(cla.as_chained(), ins, 2, 3, &[5; 100], 0).serialize_to_vec()
         );
     }
 
