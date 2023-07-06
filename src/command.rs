@@ -8,7 +8,7 @@ pub mod writer;
 pub use writer::{BufferFull, Writer};
 
 mod datasource;
-pub use datasource::DataSource;
+pub use datasource::{DataSource, DataStream};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Command<const S: usize> {
@@ -137,29 +137,29 @@ impl<'a> CommandView<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CommandBuilder<'a> {
+pub struct CommandBuilder<'a, D: ?Sized> {
     class: class::Class,
     instruction: Instruction,
 
     pub p1: u8,
     pub p2: u8,
 
-    data: &'a [u8],
+    data: &'a D,
 
     le: u16,
     supports_extended_length: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ChainedCommandIterator<'a> {
-    command: Option<CommandBuilder<'a>>,
+    command: Option<CommandBuilder<'a, [u8]>>,
     available_len: usize,
 }
 
 impl<'a> Iterator for ChainedCommandIterator<'a> {
-    type Item = CommandBuilder<'a>;
+    type Item = CommandBuilder<'a, [u8]>;
 
-    fn next(&mut self) -> Option<CommandBuilder<'a>> {
+    fn next(&mut self) -> Option<CommandBuilder<'a, [u8]>> {
         let Some(next) = self.command.take() else {
             return None;
         };
@@ -175,7 +175,7 @@ impl<'a> Iterator for ChainedCommandIterator<'a> {
 
 const HEADER_LEN: usize = 4;
 
-impl<'a> CommandBuilder<'a> {
+impl<'a, D: DataSource + ?Sized> CommandBuilder<'a, D> {
     /// Panics if data.len() > u16::MAX
     ///
     /// Assumes that extended length is supported
@@ -184,7 +184,7 @@ impl<'a> CommandBuilder<'a> {
         instruction: instruction::Instruction,
         p1: u8,
         p2: u8,
-        data: &'a [u8],
+        data: &'a D,
         le: u16,
     ) -> Self {
         assert!(data.len() <= u16::MAX as usize);
@@ -199,35 +199,7 @@ impl<'a> CommandBuilder<'a> {
         }
     }
 
-    /// Panics if data.len() > u16::MAX
-    ///
-    /// Assumes that extended length is supported
-    pub fn new_non_extended(
-        class: class::Class,
-        instruction: instruction::Instruction,
-        p1: u8,
-        p2: u8,
-        data: &'a [u8],
-        le: u16,
-        buffer_len: Option<usize>,
-    ) -> ChainedCommandIterator {
-        assert!(data.len() <= u16::MAX as usize);
-        ChainedCommandIterator {
-            command: Some(Self {
-                class,
-                instruction,
-                p1,
-                p2,
-                data,
-                le,
-                supports_extended_length: false,
-            }),
-            // default to u8::max for data, 5 bytes for the header, 1 for the trailer
-            available_len: buffer_len.unwrap_or(255 + 5 + 1),
-        }
-    }
-
-    pub fn data(&self) -> &'a [u8] {
+    pub fn data(&self) -> &'a D {
         self.data
     }
 
@@ -296,12 +268,96 @@ impl<'a> CommandBuilder<'a> {
 
     /// Serialize into one vector with assuming support for extended length information
     #[cfg(any(feature = "std", test))]
-    pub fn serialize_to_vec(self) -> Vec<u8> {
+    pub fn serialize_to_vec(self) -> Vec<u8>
+    where
+        D: DataStream<Vec<u8>>,
+    {
         let required_len = self.required_len();
         let mut buffer = Vec::with_capacity(required_len);
         self.serialize_into(&mut buffer).unwrap();
         debug_assert_eq!(required_len, buffer.len());
         buffer
+    }
+
+    /// This assumes that the writer has enough space to encode the APDU.
+    /// If that might not be the case, first use [`should_split`](Self::should_split)
+    pub fn serialize_into<W: Writer>(self, writer: &mut W) -> Result<(), W::Error>
+    where
+        D: DataStream<W>,
+    {
+        let BuildingHeaderData {
+            data_len,
+            expected_data_len,
+            ..
+        } = self.header_data();
+
+        writer.write_all(&[
+            self.class.into_inner(),
+            self.instruction.into(),
+            self.p1,
+            self.p2,
+        ])?;
+
+        writer.write_all(&data_len)?;
+        self.data.to_writer(writer)?;
+        writer.write_all(&expected_data_len)?;
+        Ok(())
+    }
+}
+
+struct BuildingHeaderData {
+    le: u16,
+    data_len: heapless::Vec<u8, 3>,
+    expected_data_len: heapless::Vec<u8, 3>,
+}
+
+impl<'a, 'b, D: PartialEq<[u8]>> PartialEq<CommandView<'a>> for CommandBuilder<'b, D> {
+    fn eq(&self, other: &CommandView<'a>) -> bool {
+        let Self {
+            class,
+            instruction,
+            p1,
+            p2,
+            data,
+            le,
+            supports_extended_length: _,
+        } = self;
+        class == &other.class
+            && instruction == &other.instruction
+            && p1 == &other.p1
+            && p2 == &other.p2
+            && data == &other.data
+            && *le as usize == other.le
+    }
+}
+
+impl<'a> CommandBuilder<'a, [u8]> {
+    /// Panics if data.len() > u16::MAX
+    ///
+    /// Assumes that extended length is supported
+    pub fn new_non_extended(
+        class: class::Class,
+        instruction: instruction::Instruction,
+        p1: u8,
+        p2: u8,
+        data: &'a [u8],
+        le: u16,
+        buffer_len: Option<usize>,
+    ) -> ChainedCommandIterator<'a> {
+        assert!(data.len() <= u16::MAX as usize);
+        ChainedCommandIterator {
+            command: Some(Self {
+                class,
+                instruction,
+                p1,
+                p2,
+                data,
+                le,
+                supports_extended_length: false,
+            }),
+            // default to u8::max for data, 5 bytes for the header, 1 for the trailer
+            available_len: buffer_len.unwrap_or(255 + 5 + 1),
+        }
     }
 
     /// Given the available length and the extended length support, split the command in 2 commands that use command chaining to be sent
@@ -361,58 +417,10 @@ impl<'a> CommandBuilder<'a> {
         };
         Some((send_now, send_later))
     }
-
-    /// This assumes that the writer has enough space to encode the APDU.
-    /// If that might not be the case, first use [`should_split`](Self::should_split)
-    pub fn serialize_into<W: Writer>(self, writer: &mut W) -> Result<(), W::Error> {
-        let BuildingHeaderData {
-            data_len,
-            expected_data_len,
-            ..
-        } = self.header_data();
-
-        writer.write_all(&[
-            self.class.into_inner(),
-            self.instruction.into(),
-            self.p1,
-            self.p2,
-        ])?;
-
-        writer.write_all(&data_len)?;
-        writer.write_all(self.data)?;
-        writer.write_all(&expected_data_len)?;
-        Ok(())
-    }
 }
 
-struct BuildingHeaderData {
-    le: u16,
-    data_len: heapless::Vec<u8, 3>,
-    expected_data_len: heapless::Vec<u8, 3>,
-}
-
-impl<'a, 'b> PartialEq<CommandView<'a>> for CommandBuilder<'b> {
-    fn eq(&self, other: &CommandView<'a>) -> bool {
-        let Self {
-            class,
-            instruction,
-            p1,
-            p2,
-            data,
-            le,
-            supports_extended_length: _,
-        } = self;
-        class == &other.class
-            && instruction == &other.instruction
-            && p1 == &other.p1
-            && p2 == &other.p2
-            && data == &other.data
-            && *le as usize == other.le
-    }
-}
-
-impl<'a, 'b> PartialEq<CommandBuilder<'a>> for CommandView<'b> {
-    fn eq(&self, other: &CommandBuilder<'a>) -> bool {
+impl<'a, 'b, D: PartialEq<[u8]>> PartialEq<CommandBuilder<'a, D>> for CommandView<'b> {
+    fn eq(&self, other: &CommandBuilder<'a, D>) -> bool {
         other == self
     }
 }

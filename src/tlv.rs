@@ -1,6 +1,6 @@
 //! BER-TLV writer and parser
 
-use crate::command::{writer::Error as _, DataSource, Writer};
+use crate::command::{writer::Error as _, DataSource, DataStream, Writer};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag([u8; 3]);
@@ -169,7 +169,7 @@ pub struct Tlv<S> {
     data: S,
 }
 
-impl<W: Writer, S: DataSource<W>> DataSource<W> for Tlv<S> {
+impl<S: DataSource> DataSource for Tlv<S> {
     fn len(&self) -> usize {
         let tag = self.tag.serialize();
         let len = serialize_len(self.data.len())
@@ -178,6 +178,12 @@ impl<W: Writer, S: DataSource<W>> DataSource<W> for Tlv<S> {
         tag.len() + len + self.data.len()
     }
 
+    fn is_empty(&self) -> bool {
+        false
+    }
+}
+
+impl<W: Writer, S: DataStream<W>> DataStream<W> for Tlv<S> {
     fn to_writer(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
         writer.write_all(&self.tag.serialize())?;
         writer.write_all(
