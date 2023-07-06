@@ -5,7 +5,6 @@ use libfuzzer_sys::fuzz_target;
 use arbitrary::Arbitrary;
 use iso7816::command::{class, BufferFull, Command, CommandBuilder, CommandView};
 
-use std::iter::repeat;
 use std::ops::Deref;
 
 #[derive(Debug)]
@@ -45,7 +44,6 @@ struct Input<'a> {
     p2: u8,
     le: u16,
     buf_len: usize,
-    buf_lens: Vec<usize>,
     supports_extended: bool,
     data: &'a [u8],
 }
@@ -56,9 +54,8 @@ fuzz_target!(|data: Input| {
         instruction,
         p1,
         p2,
-        le,
-        buf_len,
-        buf_lens,
+        mut le,
+        mut buf_len,
         supports_extended,
         data,
     } = data;
@@ -69,176 +66,96 @@ fuzz_target!(|data: Input| {
     let Ok(class) = class::Class::try_from(class) else {
         return;
     };
-    let ins = instruction.into();
-    let command = CommandBuilder::new(class, ins, p1, p2, data, le);
 
+    if !supports_extended {
+        le = le.min(255);
+    }
+
+    buf_len = buf_len.min(4096).max(128);
+
+    let ins = instruction.into();
+
+    let command = CommandBuilder::new(class, ins, p1, p2, data, le);
     // Test for the length information
     {
-        command.clone().serialize_to_vec(true);
-        command.clone().serialize_to_vec(false);
+        command.clone().serialize_to_vec();
+        for command in CommandBuilder::new_non_extended(class, ins, p1, p2, data, le, None) {
+            command.serialize_to_vec();
+        }
     }
 
     let mut buffer = WriteMock {
         buffer: [0; 4096],
         written: 0,
-        capacity: buf_len.min(4096).max(128),
+        capacity: buf_len,
     };
 
-    match command.should_split(buffer.capacity, supports_extended) {
-        None => {
-            command
-                .clone()
-                .serialize_into(&mut buffer, supports_extended)
-                .unwrap();
-            let view = CommandView::try_from(&*buffer).unwrap();
-            if !supports_extended {
-                assert!(view.data().len() <= 256);
-                assert!(!view.extended());
-                // Without extended support, le is truncated to 256 at max, and the response will come with command chaining
-                let command = CommandBuilder::new(class, ins, p1, p2, data, le.min(256));
-                assert_eq!(view, command);
+    if !supports_extended {
+        let mut acc: Option<Command<4096>> = None;
+        let mut iter =
+            CommandBuilder::new_non_extended(class, ins, p1, p2, data, le, Some(buf_len))
+                .peekable();
+        while let Some(cmd) = iter.next() {
+            buffer.written = 0;
+            let (cla, le) = if iter.peek().is_some() {
+                (class.as_chained(), 0)
             } else {
-                assert_eq!(view, command);
+                (class, le.min(256))
+            };
+            let reference_command = CommandBuilder::new(cla, ins, p1, p2, cmd.data(), le);
+            cmd.serialize_into(&mut buffer).unwrap();
+            let view = CommandView::try_from(&*buffer).unwrap();
+            assert!(view.data().len() <= 256);
+            assert!(!view.extended());
+            // Without extended support, le is truncated to 256 at max, and the response will come with command chaining
+            assert_eq!(view, reference_command);
+
+            if let Some(partial) = &mut acc {
+                partial.extend_from_command_view(view).unwrap();
+            } else {
+                acc = Some(view.to_owned().unwrap());
             }
         }
-        Some((current_command, mut remaining_command)) => {
-            current_command
-                .clone()
-                .serialize_into(&mut buffer, supports_extended)
-                .unwrap();
-            let mut parsed_command: iso7816::Command<4096> = Command::try_from(&buffer).unwrap();
-            if !supports_extended {
-                assert!(parsed_command.data().len() <= 256);
-                assert!(!parsed_command.extended());
-                assert_eq!(parsed_command.as_view(), current_command);
-            } else {
-                assert_eq!(parsed_command.as_view(), current_command);
-            }
-
-            for buf_len in repeat(
-                buf_lens
-                    .into_iter()
-                    .map(|l| l.min(4096).max(128))
-                    .chain([128]),
-            )
-            .flatten()
-            {
-                let mut buffer = WriteMock {
-                    buffer: [0; 4096],
-                    written: 0,
-                    capacity: buf_len.min(4096).max(128),
-                };
-
-                let Some((left, rem)) = remaining_command.should_split(buf_len, supports_extended) else {
-
-                    remaining_command.clone().serialize_into(&mut buffer, supports_extended).unwrap();
-
-                    let view = CommandView::try_from(&*buffer).unwrap();
-                    if !supports_extended {
-                        assert!(view.data().len() <= 256);
-                        assert!(!view.extended());
-                        assert_eq!(view, remaining_command);
-                    } else {
-                        assert_eq!(view, remaining_command);
-                    }
-                    parsed_command.extend_from_command_view(view).unwrap();
-                    let view = parsed_command.as_view();
-
-                    if !supports_extended {
-                        // Without extended support, le is truncated to 256 at max, and the response will come with command chaining
-                        let command = CommandBuilder::new(class, ins, p1, p2, data, le.min(256));
-                        assert_eq!(view, command);
-                    } else {
-                        assert_eq!(view, command);
-                    }
-
-                    break;
-                };
-                remaining_command = rem;
-
-                left.clone()
-                    .serialize_into(&mut buffer, supports_extended)
-                    .unwrap();
+        assert_eq!(acc.unwrap().as_view(), command);
+    } else {
+        match command.should_split(buffer.capacity) {
+            None => {
+                command.clone().serialize_into(&mut buffer).unwrap();
                 let view = CommandView::try_from(&*buffer).unwrap();
-                if !supports_extended {
-                    assert!(view.data().len() <= 256);
-                    assert!(!view.extended());
-                    assert_eq!(view, left);
-                } else {
-                    assert_eq!(view, left);
-                }
+                assert_eq!(view, command);
+            }
+            Some((current_command, mut remaining_command)) => {
+                current_command.clone().serialize_into(&mut buffer).unwrap();
+                let mut parsed_command: iso7816::Command<4096> =
+                    Command::try_from(&buffer).unwrap();
+                assert_eq!(parsed_command.as_view(), current_command);
 
-                parsed_command.extend_from_command_view(view).unwrap();
+                loop {
+                    let mut buffer = WriteMock {
+                        buffer: [0; 4096],
+                        written: 0,
+                        capacity: buf_len,
+                    };
+
+                    let Some((left, rem)) = remaining_command.should_split(buf_len) else {
+                        remaining_command.clone().serialize_into(&mut buffer).unwrap();
+
+                        let view = CommandView::try_from(&*buffer).unwrap();
+                        assert_eq!(view, remaining_command);
+                        parsed_command.extend_from_command_view(view).unwrap();
+                        let view = parsed_command.as_view();
+                        assert_eq!(view, command);
+                        break;
+                    };
+                    remaining_command = rem;
+
+                    left.clone().serialize_into(&mut buffer).unwrap();
+                    let view = CommandView::try_from(&*buffer).unwrap();
+                    assert_eq!(view, left);
+
+                    parsed_command.extend_from_command_view(view).unwrap();
+                }
             }
         }
     }
-
-    // match command
-    //     .clone()
-    //     .serialize_into(&mut buffer, supports_extended)
-    //     .unwrap()
-    // {
-    //     Ok(()) => {
-    //         // dbg!(&*buffer, buffer.len());
-    //         let view = CommandView::try_from(&*buffer).unwrap();
-    //         if !supports_extended {
-    //             assert!(view.data().len() <= 256);
-    //             assert!(!view.extended());
-    //             // Without extended support, le is truncated to 256 at max, and the response will come with command chaining
-    //             let command = CommandBuilder::new(class, ins, p1, p2, data, le.min(256));
-    //             assert_eq!(command, view);
-    //         } else {
-    //             assert_eq!(view, command);
-    //         }
-    //     }
-
-    //     Err(mut rem) => {
-    //         let len = buffer.len();
-    //         // dbg!(&*buffer, buffer.len());
-    //         let mut parsed = Command::<4096>::try_from(&buffer[..len]).unwrap();
-    //         if !supports_extended {
-    //             assert!(parsed.data().len() <= 255);
-    //             assert!(!parsed.extended());
-    //         }
-    //         // Loop with arbitrary buflens forever
-    //         for buflen in repeat(buf_lens.iter().chain([&128])).flatten() {
-    //             let mut buffer = WriteMock {
-    //                 buffer: [0; 4096],
-    //                 written: 0,
-    //                 capacity: (*buflen).min(4096).max(128),
-    //             };
-    //             match rem.serialize_into(&mut buffer, supports_extended).unwrap() {
-    //                 Ok(()) => {
-    //                     // dbg!(&*buffer, buffer.len());
-    //                     let view = CommandView::try_from(&*buffer).unwrap();
-    //                     if !supports_extended {
-    //                         assert!(view.data().len() <= 255);
-    //                         assert!(!view.extended());
-    //                     }
-    //                     parsed.extend_from_command_view(view).unwrap();
-    //                     if supports_extended {
-    //                         assert_eq!(command, parsed.as_view());
-    //                     } else {
-    //                         // Without extended support, le is truncated to 255 at max, and the response will come with command chaining
-    //                         let command =
-    //                             CommandBuilder::new(class, ins, p1, p2, data, le.min(256));
-    //                         assert_eq!(command, parsed.as_view());
-    //                     }
-    //                     return;
-    //                 }
-    //                 Err(new_rem) => {
-    //                     rem = new_rem;
-
-    //                     let view = CommandView::try_from(&*buffer).unwrap();
-    //                     if !supports_extended {
-    //                         assert!(view.data().len() <= 255);
-    //                         assert!(!view.extended());
-    //                     }
-    //                     parsed.extend_from_command_view(view).unwrap();
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // fuzzed code goes here
 });
