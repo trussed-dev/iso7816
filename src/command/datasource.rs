@@ -97,6 +97,22 @@ impl<W: super::Writer, I: DataStream<W>> DataStream<W> for Option<I> {
     }
 }
 
+impl DataSource for () {
+    fn len(&self) -> usize {
+        0
+    }
+
+    fn is_empty(&self) -> bool {
+        true
+    }
+}
+
+impl<W: super::Writer> DataStream<W> for () {
+    fn to_writer(&self, _writer: &mut W) -> Result<(), <W as super::Writer>::Error> {
+        Ok(())
+    }
+}
+
 impl<T: DataSource + ?Sized> DataSource for &T {
     fn len(&self) -> usize {
         T::len(&**self)
@@ -129,7 +145,7 @@ mod tuple_impls {
                 fn is_empty(&self) -> bool {
                     #[allow(non_snake_case)]
                     let ($($t),+) = self;
-                    true $( || $t.is_empty())+
+                    true $( && $t.is_empty())+
                 }
             }
             impl<W: crate::command::Writer, $($t: DataStream<W>),+> DataStream<W> for ($($t),+) {
