@@ -110,7 +110,7 @@ pub fn get_do<'input>(tag_path: &[Tag], data: &'input [u8]) -> Option<&'input [u
 }
 
 /// Returns (tag, data, remainder)
-fn take_do(data: &[u8]) -> Option<(Tag, &[u8], &[u8])> {
+pub fn take_do(data: &[u8]) -> Option<(Tag, &[u8], &[u8])> {
     let (tag, remainder) = take_tag(data)?;
     let (len, remainder) = take_len(remainder)?;
     if remainder.len() < len {
@@ -184,6 +184,12 @@ fn serialize_len(len: usize) -> Option<heapless::Vec<u8, 3>> {
 pub struct Tlv<S> {
     tag: Tag,
     data: S,
+}
+
+impl<S> Tlv<S> {
+    pub fn new(tag: Tag, data: S) -> Self {
+        Self { tag, data }
+    }
 }
 
 impl<S: DataSource> DataSource for Tlv<S> {
