@@ -77,3 +77,22 @@ impl<W: super::Writer> DataStream<W> for [&dyn DataStream<W>] {
         Ok(())
     }
 }
+
+impl<I: DataSource> DataSource for Option<I> {
+    fn len(&self) -> usize {
+        self.as_ref().map(DataSource::len).unwrap_or(0)
+    }
+    fn is_empty(&self) -> bool {
+        self.as_ref().map(DataSource::is_empty).unwrap_or(true)
+    }
+}
+
+impl<W: super::Writer, I: DataStream<W>> DataStream<W> for Option<I> {
+    fn to_writer(&self, writer: &mut W) -> Result<(), <W as super::Writer>::Error> {
+        if let Some(inner) = self {
+            inner.to_writer(writer)
+        } else {
+            Ok(())
+        }
+    }
+}
