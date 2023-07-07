@@ -178,7 +178,7 @@ pub const ZERO_CLA: Class = match Class::from_byte(0x00) {
 };
 
 /// Cla = 0x80
-pub const SM_NO_CLA: Class = match Class::from_byte(0x80) {
+pub const NO_SM_CLA: Class = match Class::from_byte(0x80) {
     Ok(cla) => cla,
     Err(_) => unreachable!(),
 };
