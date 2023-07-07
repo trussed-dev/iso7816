@@ -7,7 +7,7 @@ pub struct Tag([u8; 3]);
 
 impl Tag {
     pub const fn from_u8(value: u8) -> Self {
-        Tag([value, 0, 0])
+        Tag([0, 0, value])
     }
 
     pub const fn from_u16(value: u16) -> Self {
@@ -16,9 +16,9 @@ impl Tag {
 
     pub const fn from_2([b1, b2]: [u8; 2]) -> Self {
         if b1 == 0 {
-            Tag([b2, 0, 0])
+            Tag([0, 0, b2])
         } else {
-            Tag([b1, b2, 0])
+            Tag([0, b1, b2])
         }
     }
     pub const fn from_3([b1, b2, b3]: [u8; 3]) -> Self {
@@ -140,10 +140,10 @@ pub fn take_tag(data: &[u8]) -> Option<(Tag, &[u8])> {
 
             Some((Tag([b1, b2, b3]), &data[3..]))
         } else {
-            Some((Tag([b1, b2, 0]), &data[2..]))
+            Some((Tag([0, b1, b2]), &data[2..]))
         }
     } else {
-        Some((Tag([b1, 0, 0]), &data[1..]))
+        Some((Tag([0, 0, b1]), &data[1..]))
     }
 }
 
@@ -173,8 +173,8 @@ fn serialize_len(len: usize) -> Option<heapless::Vec<u8, 3>> {
             buf.extend_from_slice(&[0x81, len]).ok();
         }
     } else if let Ok(len) = u16::try_from(len) {
-        let arr = len.to_be_bytes();
-        buf.extend_from_slice(&[0x82, arr[0], arr[1]]).ok();
+        let [ar1, ar2] = len.to_be_bytes();
+        buf.extend_from_slice(&[0x82, ar1, ar2]).ok();
     } else {
         return None;
     }
@@ -239,5 +239,14 @@ mod tests {
             get_do(&[0xA6u16, 0x7F49, 0x86].map(Tag::from), &hex!("A6 2A 02 02 DEAD 7F49 23 86 21 04 2525252525252525252525252525252525252525252525252525252525252525")),
             Some(hex!("04 2525252525252525252525252525252525252525252525252525252525252525").as_slice())
         );
+    }
+
+    #[test]
+    fn tlv() {
+        let mut buf = [0u8; 4];
+        Tlv::new(Tag::from_u8(0x41), hex!("012A"))
+            .to_writer(&mut buf.as_mut_slice())
+            .unwrap();
+        assert_eq!(buf.as_slice(), &hex!("41 02 012A"))
     }
 }
