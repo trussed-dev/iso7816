@@ -96,3 +96,66 @@ impl<W: super::Writer, I: DataStream<W>> DataStream<W> for Option<I> {
         }
     }
 }
+
+impl<T: DataSource + ?Sized> DataSource for &T {
+    fn len(&self) -> usize {
+        T::len(&**self)
+    }
+
+    fn is_empty(&self) -> bool {
+        T::is_empty(&**self)
+    }
+}
+
+impl<W: super::Writer, T: DataStream<W> + ?Sized> DataStream<W> for &T {
+    fn to_writer(&self, writer: &mut W) -> Result<(), <W as super::Writer>::Error> {
+        T::to_writer(&**self, writer)
+    }
+}
+
+mod tuple_impls {
+    use super::*;
+
+    /// implementation for tuples
+    macro_rules! tuple_impl {
+        ($($t:tt)+) => {
+            impl<$($t: DataSource),+> DataSource for ($($t),+) {
+                fn len(&self) -> usize {
+                    #[allow(non_snake_case)]
+                    let ($($t),+) = self;
+                    0 $( + $t.len())+
+                }
+
+                fn is_empty(&self) -> bool {
+                    #[allow(non_snake_case)]
+                    let ($($t),+) = self;
+                    true $( || $t.is_empty())+
+                }
+            }
+            impl<W: crate::command::Writer, $($t: DataStream<W>),+> DataStream<W> for ($($t),+) {
+                fn to_writer(&self, writer: &mut W) -> Result<(), <W as crate::command::Writer>::Error> {
+                    #[allow(non_snake_case)]
+                    let ($($t),+) = self;
+                    $($t.to_writer(writer)?;)+
+                    Ok(())
+                }
+            }
+        };
+    }
+
+    tuple_impl!(A B);
+    tuple_impl!(A B C);
+    tuple_impl!(A B C D);
+    tuple_impl!(A B C D E);
+    tuple_impl!(A B C D E F);
+    tuple_impl!(A B C D E F G);
+    tuple_impl!(A B C D E F G H);
+    tuple_impl!(A B C D E F G H I);
+    tuple_impl!(A B C D E F G H I J);
+    tuple_impl!(A B C D E F G H I J K);
+    tuple_impl!(A B C D E F G H I J K L);
+    tuple_impl!(A B C D E F G H I J K L M);
+    tuple_impl!(A B C D E F G H I J K L M N);
+    tuple_impl!(A B C D E F G H I J K L M N O);
+    tuple_impl!(A B C D E F G H I J K L M N O P);
+}
