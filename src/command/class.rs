@@ -52,17 +52,17 @@ impl Chain {
 
 impl Class {
     #[inline]
-    pub fn into_inner(self) -> u8 {
+    pub const fn into_inner(self) -> u8 {
         self.cla
     }
 
     #[inline]
-    pub fn range(&self) -> Range {
+    pub const fn range(&self) -> Range {
         self.range
     }
 
     #[inline]
-    pub fn secure_messaging(&self) -> SecureMessaging {
+    pub const fn secure_messaging(&self) -> SecureMessaging {
         match self.range {
             Range::Interindustry(which) => match which {
                 Interindustry::First => match (self.cla >> 2) & 0b11 {
@@ -83,7 +83,7 @@ impl Class {
     }
 
     #[inline]
-    pub fn chain(&self) -> Chain {
+    pub const fn chain(&self) -> Chain {
         if self.cla & (1 << 4) != 0 {
             Chain::NotTheLast
         } else {
@@ -91,18 +91,25 @@ impl Class {
         }
     }
 
-    pub fn as_chained(mut self) -> Self {
+    pub const fn as_chained(mut self) -> Self {
         self.cla |= 1 << 4;
         self
     }
 
     #[inline]
-    pub fn channel(&self) -> Option<u8> {
-        Some(match self.range() {
+    pub const fn channel(&self) -> Option<u8> {
+        Some(match self.range {
             Range::Interindustry(Interindustry::First) => self.cla & 0b11,
             Range::Interindustry(Interindustry::Further) => (4 + self.cla) & 0b111,
             _ => return None,
         })
+    }
+
+    pub const fn from_byte(cla: u8) -> Result<Self, InvalidClass> {
+        match Range::from_cla(cla) {
+            Ok(range) => Ok(Self { cla, range }),
+            Err(err) => Err(err),
+        }
     }
 }
 
@@ -129,21 +136,8 @@ pub enum Range {
     Proprietary,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum Interindustry {
-    First,
-    Further,
-    Reserved,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct InvalidClass {}
-
-impl TryFrom<u8> for Range {
-    type Error = InvalidClass;
-
-    #[inline]
-    fn try_from(cla: u8) -> Result<Self, Self::Error> {
+impl Range {
+    pub const fn from_cla(cla: u8) -> Result<Self, InvalidClass> {
         if cla == 0xff {
             return Err(InvalidClass {});
         }
@@ -159,19 +153,38 @@ impl TryFrom<u8> for Range {
     }
 }
 
-pub const ZERO_CLA: Class = Class {
-    cla: 0,
-    range: Range::Interindustry(Interindustry::First),
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Interindustry {
+    First,
+    Further,
+    Reserved,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct InvalidClass {}
+
+impl TryFrom<u8> for Range {
+    type Error = InvalidClass;
+
+    #[inline]
+    fn try_from(cla: u8) -> Result<Self, Self::Error> {
+        Self::from_cla(cla)
+    }
+}
+
+pub const ZERO_CLA: Class = match Class::from_byte(0x00) {
+    Ok(cla) => cla,
+    Err(_) => unreachable!(),
 };
 
 /// Cla = 0x80
-pub const NO_SM_CLA: Class = Class {
-    cla: 0x80,
-    range: Range::Proprietary,
+pub const SM_NO_CLA: Class = match Class::from_byte(0x80) {
+    Ok(cla) => cla,
+    Err(_) => unreachable!(),
 };
 
 /// Cla = 0x84
-pub const SM_CLA: Class = Class {
-    cla: 0x84,
-    range: Range::Proprietary,
+pub const SM_CLA: Class = match Class::from_byte(0x84) {
+    Ok(cla) => cla,
+    Err(_) => unreachable!(),
 };
