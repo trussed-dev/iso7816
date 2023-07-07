@@ -5,9 +5,34 @@ use crate::command::{writer::Error as _, DataSource, DataStream, Writer};
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Tag([u8; 3]);
 
+impl Tag {
+    pub const fn from_u8(value: u8) -> Self {
+        Tag([value, 0, 0])
+    }
+
+    pub const fn from_u16(value: u16) -> Self {
+        Tag::from_2(value.to_be_bytes())
+    }
+
+    pub const fn from_2([b1, b2]: [u8; 2]) -> Self {
+        if b1 == 0 {
+            Tag([b2, 0, 0])
+        } else {
+            Tag([b1, b2, 0])
+        }
+    }
+    pub const fn from_3([b1, b2, b3]: [u8; 3]) -> Self {
+        if b1 == 0 {
+            Self::from_2([b2, b3])
+        } else {
+            Tag([b1, b2, b3])
+        }
+    }
+}
+
 impl From<u8> for Tag {
     fn from(value: u8) -> Self {
-        Tag([value, 0, 0])
+        Self::from_u8(value)
     }
 }
 
@@ -24,22 +49,14 @@ impl From<[u8; 1]> for Tag {
 }
 
 impl From<[u8; 2]> for Tag {
-    fn from([b1, b2]: [u8; 2]) -> Self {
-        if b1 == 0 {
-            Tag([b2, 0, 0])
-        } else {
-            Tag([b1, b2, 0])
-        }
+    fn from(value: [u8; 2]) -> Self {
+        Self::from_2(value)
     }
 }
 
 impl From<[u8; 3]> for Tag {
-    fn from([b1, b2, b3]: [u8; 3]) -> Self {
-        if b1 == 0 {
-            [b2, b3].into()
-        } else {
-            Tag([b1, b2, 0])
-        }
+    fn from(value: [u8; 3]) -> Self {
+        Self::from_3(value)
     }
 }
 
