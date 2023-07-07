@@ -136,44 +136,30 @@ impl<'a> CommandView<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct CommandBuilder<'a, D: ?Sized> {
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct CommandBuilder<D> {
     class: class::Class,
     instruction: Instruction,
 
     pub p1: u8,
     pub p2: u8,
 
-    data: &'a D,
+    data: D,
 
     le: u16,
     supports_extended_length: bool,
 }
 
-impl<'a, D: ?Sized> Clone for CommandBuilder<'a, D> {
-    fn clone(&self) -> Self {
-        Self {
-            class: self.class,
-            instruction: self.instruction,
-            p1: self.p1,
-            p2: self.p2,
-            data: self.data,
-            le: self.le,
-            supports_extended_length: self.supports_extended_length,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct ChainedCommandIterator<'a> {
-    command: Option<CommandBuilder<'a, [u8]>>,
+    command: Option<CommandBuilder<&'a [u8]>>,
     available_len: usize,
 }
 
 impl<'a> Iterator for ChainedCommandIterator<'a> {
-    type Item = CommandBuilder<'a, [u8]>;
+    type Item = CommandBuilder<&'a [u8]>;
 
-    fn next(&mut self) -> Option<CommandBuilder<'a, [u8]>> {
+    fn next(&mut self) -> Option<CommandBuilder<&'a [u8]>> {
         let Some(next) = self.command.take() else {
             return None;
         };
@@ -189,7 +175,7 @@ impl<'a> Iterator for ChainedCommandIterator<'a> {
 
 const HEADER_LEN: usize = 4;
 
-impl<'a, D: DataSource + ?Sized> CommandBuilder<'a, D> {
+impl<'a, D: DataSource> CommandBuilder<D> {
     /// Panics if data.len() > u16::MAX
     ///
     /// Assumes that extended length is supported
@@ -198,7 +184,7 @@ impl<'a, D: DataSource + ?Sized> CommandBuilder<'a, D> {
         instruction: instruction::Instruction,
         p1: u8,
         p2: u8,
-        data: &'a D,
+        data: D,
         le: u16,
     ) -> Self {
         assert!(data.len() <= u16::MAX as usize);
@@ -213,7 +199,10 @@ impl<'a, D: DataSource + ?Sized> CommandBuilder<'a, D> {
         }
     }
 
-    pub fn data(&self) -> &'a D {
+    pub fn data(&self) -> D
+    where
+        D: Copy,
+    {
         self.data
     }
 
@@ -325,7 +314,7 @@ struct BuildingHeaderData {
     expected_data_len: heapless::Vec<u8, 3>,
 }
 
-impl<'a, 'b, D: PartialEq<[u8]> + ?Sized> PartialEq<CommandView<'a>> for CommandBuilder<'b, D> {
+impl<'a, D: PartialEq<&'a [u8]>> PartialEq<CommandView<'a>> for CommandBuilder<D> {
     fn eq(&self, other: &CommandView<'a>) -> bool {
         let Self {
             class,
@@ -345,7 +334,7 @@ impl<'a, 'b, D: PartialEq<[u8]> + ?Sized> PartialEq<CommandView<'a>> for Command
     }
 }
 
-impl<'a> CommandBuilder<'a, [u8]> {
+impl<'a> CommandBuilder<&'a [u8]> {
     /// Panics if data.len() > u16::MAX
     ///
     /// Assumes that extended length is supported
@@ -433,7 +422,7 @@ impl<'a> CommandBuilder<'a, [u8]> {
     }
 }
 
-impl<'a, D: DataSource + ?Sized> DataSource for CommandBuilder<'a, D> {
+impl<D: DataSource> DataSource for CommandBuilder<D> {
     fn len(&self) -> usize {
         self.required_len()
     }
@@ -443,14 +432,14 @@ impl<'a, D: DataSource + ?Sized> DataSource for CommandBuilder<'a, D> {
     }
 }
 
-impl<'a, W: Writer, D: DataStream<W> + ?Sized> DataStream<W> for CommandBuilder<'a, D> {
+impl<W: Writer, D: DataStream<W>> DataStream<W> for CommandBuilder<D> {
     fn to_writer(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
         self.serialize_into(writer)
     }
 }
 
-impl<'a, 'b, D: PartialEq<[u8]> + ?Sized> PartialEq<CommandBuilder<'a, D>> for CommandView<'b> {
-    fn eq(&self, other: &CommandBuilder<'a, D>) -> bool {
+impl<'a, D: PartialEq<&'a [u8]>> PartialEq<CommandBuilder<D>> for CommandView<'a> {
+    fn eq(&self, other: &CommandBuilder<D>) -> bool {
         other == self
     }
 }
