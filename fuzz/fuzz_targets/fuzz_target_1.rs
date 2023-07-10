@@ -45,6 +45,7 @@ struct Input<'a> {
     le: u16,
     buf_len: usize,
     supports_extended: bool,
+    force_extended: bool,
     data: &'a [u8],
 }
 
@@ -57,6 +58,7 @@ fuzz_target!(|data: Input| {
         mut le,
         mut buf_len,
         supports_extended,
+        force_extended,
         data,
     } = data;
     if class == 0b11101111 {
@@ -75,7 +77,10 @@ fuzz_target!(|data: Input| {
 
     let ins = instruction.into();
 
-    let command = CommandBuilder::new(class, ins, p1, p2, data, le);
+    let mut command = CommandBuilder::new(class, ins, p1, p2, data, le);
+    if force_extended && supports_extended {
+        command = command.force_extended();
+    }
     // Test for the length information
     {
         command.clone().serialize_to_vec();

@@ -136,6 +136,13 @@ impl<'a> CommandView<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum ExtendedLen {
+    Unsupported,
+    Supported,
+    Forced,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CommandBuilder<D> {
     class: class::Class,
@@ -147,7 +154,7 @@ pub struct CommandBuilder<D> {
     data: D,
 
     le: u16,
-    supports_extended_length: bool,
+    extended_length: ExtendedLen,
 }
 
 #[derive(Debug)]
@@ -179,6 +186,7 @@ impl<'a, D: DataSource> CommandBuilder<D> {
     /// Panics if data.len() > u16::MAX
     ///
     /// Assumes that extended length is supported
+    ///
     pub fn new(
         class: class::Class,
         instruction: instruction::Instruction,
@@ -195,8 +203,16 @@ impl<'a, D: DataSource> CommandBuilder<D> {
             p2,
             data,
             le,
-            supports_extended_length: true,
+            extended_length: ExtendedLen::Supported,
         }
+    }
+
+    /// Force the encoding of the APDU to be extended,
+    /// even when the data and expected length are not neccessarily extended.
+    pub fn force_extended(mut self) -> Self {
+        assert!(!matches!(self.extended_length, ExtendedLen::Unsupported));
+        self.extended_length = ExtendedLen::Forced;
+        self
     }
 
     pub fn data(&self) -> D
@@ -208,10 +224,16 @@ impl<'a, D: DataSource> CommandBuilder<D> {
 
     fn header_data(&self) -> BuildingHeaderData {
         /// Returns (data, len of data, and is_extended)
-        fn serialize_data_len(len: u16, expected_len: u16) -> (heapless::Vec<u8, 3>, bool) {
-            match (len, expected_len > 256) {
-                (0, _) => (Default::default(), false),
-                (1..=255, false) => ([len as u8].as_slice().try_into().unwrap(), false),
+        fn serialize_data_len(
+            len: u16,
+            expected_len: u16,
+            extended: ExtendedLen,
+        ) -> (heapless::Vec<u8, 3>, bool) {
+            match (len, expected_len > 256, extended) {
+                (0, _, _) => (Default::default(), false),
+                (1..=255, false, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
+                    ([len as u8].as_slice().try_into().unwrap(), false)
+                }
                 _ => {
                     let l = len.to_be_bytes();
                     ([0, l[0], l[1]].as_slice().try_into().unwrap(), true)
@@ -223,34 +245,51 @@ impl<'a, D: DataSource> CommandBuilder<D> {
             len: u16,
             lc_extended: bool,
             data_is_empty: bool,
+            extended: ExtendedLen,
         ) -> heapless::Vec<u8, 3> {
-            match (len, lc_extended, data_is_empty) {
-                (0, _, _) => Default::default(),
-                (1..=255, false, _) => [len as u8].as_slice().try_into().unwrap(),
-                (256, false, _) => [0].as_slice().try_into().unwrap(),
-                (_, true, false) => {
+            match (len, lc_extended, data_is_empty, extended) {
+                (257.., false, true, ExtendedLen::Unsupported) => {
+                    panic!("Can't have Ne > 256 without extended support")
+                }
+                (0, _, _, _) => Default::default(),
+                (1..=255, false, _, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
+                    [len as u8].as_slice().try_into().unwrap()
+                }
+                (256, false, _, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
+                    [0].as_slice().try_into().unwrap()
+                }
+                (_, true, false, _) => {
                     let l = len.to_be_bytes();
                     [l[0], l[1]].as_slice().try_into().unwrap()
                 }
-                (_, false, true) => {
+                (_, false, true, _) => {
                     let l = len.to_be_bytes();
                     [0, l[0], l[1]].as_slice().try_into().unwrap()
                 }
-                (257.., false, false) => unreachable!("Can't have non extended Lc and extended Le"),
-                (_, true, true) => unreachable!("Can't have both no data and data extended length"),
+                (257.., false, false, _) | (_, false, false, ExtendedLen::Forced) => {
+                    unreachable!("Can't have non extended Lc and extended Le")
+                }
+                (_, true, true, _) => {
+                    unreachable!("Can't have both no data and data extended length")
+                }
             }
         }
 
-        let le = if self.supports_extended_length {
-            self.le
-        } else {
+        let le = if self.extended_length == ExtendedLen::Unsupported {
             self.le.min(256)
+        } else {
+            self.le
         };
 
         // Safe to unwrap because of check in `new`
-        let (data_len, lc_extended) = serialize_data_len(self.data.len().try_into().unwrap(), le);
+        let (data_len, lc_extended) = serialize_data_len(
+            self.data.len().try_into().unwrap(),
+            le,
+            self.extended_length,
+        );
 
-        let expected_data_len = serialize_expected_len(le, lc_extended, self.data.is_empty());
+        let expected_data_len =
+            serialize_expected_len(le, lc_extended, self.data.is_empty(), self.extended_length);
         BuildingHeaderData {
             le,
             data_len,
@@ -323,7 +362,7 @@ impl<'a, D: PartialEq<&'a [u8]>> PartialEq<CommandView<'a>> for CommandBuilder<D
             p2,
             data,
             le,
-            supports_extended_length: _,
+            extended_length: _,
         } = self;
         class == &other.class
             && instruction == &other.instruction
@@ -356,7 +395,7 @@ impl<'a> CommandBuilder<&'a [u8]> {
                 p2,
                 data,
                 le,
-                supports_extended_length: false,
+                extended_length: ExtendedLen::Unsupported,
             }),
             // default to u8::max for data, 5 bytes for the header, 1 for the trailer
             available_len: buffer_len.unwrap_or(255 + 5 + 1),
@@ -381,7 +420,7 @@ impl<'a> CommandBuilder<&'a [u8]> {
         } = self.header_data();
 
         let mut max_data_len = u16::MAX as usize;
-        if !self.supports_extended_length {
+        if self.extended_length == ExtendedLen::Unsupported {
             max_data_len = 255;
         }
 
@@ -407,7 +446,7 @@ impl<'a> CommandBuilder<&'a [u8]> {
             p2: self.p2,
             data: send_now,
             le: 0,
-            supports_extended_length: self.supports_extended_length,
+            extended_length: self.extended_length,
         };
         let send_later = Self {
             class: self.class,
@@ -416,7 +455,7 @@ impl<'a> CommandBuilder<&'a [u8]> {
             p2: self.p2,
             data: send_later,
             le,
-            supports_extended_length: self.supports_extended_length,
+            extended_length: self.extended_length,
         };
         Some((send_now, send_later))
     }
@@ -702,6 +741,34 @@ mod test {
     }
 
     #[test]
+    fn builder_forced_extended() {
+        let cla = 0.try_into().unwrap();
+        let ins = 1.into();
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[], 0x04).force_extended();
+        assert_eq!(command.serialize_to_vec(), &hex!("00 01 02 03 00 00 04"));
+
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x05, 0x06], 0x04).force_extended();
+        assert_eq!(
+            command.serialize_to_vec(),
+            &hex!("00 01 02 03 00 00 02 05 06 00 04")
+        );
+
+        let command = CommandBuilder::new(cla, ins, 2, 3, &[0x01; 0x2AE], 0x100).force_extended();
+        assert_eq!(
+            command.serialize_to_vec(),
+            [
+                hex!("00 01 02 03 00 02AE").as_slice(),
+                &[0x01; 0x2AE],
+                &hex!("01 00"),
+            ]
+            .into_iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<u8>>()
+        );
+    }
+
+    #[test]
     fn builder() {
         let cla = 0.try_into().unwrap();
         let ins = 1.into();
@@ -847,7 +914,7 @@ mod test {
         assert!(command_iter.next().is_none());
         command.serialize_into(&mut buffer).unwrap();
         assert_eq!(buffer.len(), 105);
-        rem.supports_extended_length = true;
+        rem.extended_length = ExtendedLen::Supported;
         assert_eq!(
             rem,
             CommandBuilder::new(cla, ins, 2, 3, [5; 100].as_slice(), 0)
