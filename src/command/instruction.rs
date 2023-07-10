@@ -1,23 +1,3 @@
-// #[derive(Copy, Clone, Eq, PartialEq)]
-// pub struct BinaryInstruction(u8);
-// impl fmt::Debug for BinaryInstruction {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.write_fmt(format_args!("'{:X}'", self.0))
-//     }
-// }
-
-// impl From<u8> for BinaryInstruction {
-//     fn from(ins: u8) -> Self {
-//         Self(ins)
-//     }
-// }
-
-// impl From<BinaryInstruction> for u8 {
-//     fn from(ins: BinaryInstruction) -> u8 {
-//         ins.0
-//     }
-// }
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Instruction {
     Select,
