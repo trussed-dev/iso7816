@@ -153,7 +153,7 @@ pub struct CommandBuilder<D> {
 
     data: D,
 
-    le: u16,
+    le: ExpectedLen,
     extended_length: ExtendedLen,
 }
 
@@ -182,6 +182,27 @@ impl<'a> Iterator for ChainedCommandIterator<'a> {
 
 const HEADER_LEN: usize = 4;
 
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Copy)]
+pub enum ExpectedLen {
+    Ne(u16),
+    Max,
+}
+
+impl From<u16> for ExpectedLen {
+    fn from(value: u16) -> Self {
+        Self::Ne(value)
+    }
+}
+
+impl From<ExpectedLen> for usize {
+    fn from(value: ExpectedLen) -> Self {
+        (match value {
+            ExpectedLen::Ne(l) => l,
+            ExpectedLen::Max => u16::MAX,
+        }) as _
+    }
+}
+
 impl<'a, D: DataSource> CommandBuilder<D> {
     /// Panics if data.len() > u16::MAX
     ///
@@ -193,7 +214,7 @@ impl<'a, D: DataSource> CommandBuilder<D> {
         p1: u8,
         p2: u8,
         data: D,
-        le: u16,
+        le: impl Into<ExpectedLen>,
     ) -> Self {
         assert!(data.len() <= u16::MAX as usize);
         Self {
@@ -202,7 +223,7 @@ impl<'a, D: DataSource> CommandBuilder<D> {
             p1,
             p2,
             data,
-            le,
+            le: le.into(),
             extended_length: ExtendedLen::Supported,
         }
     }
@@ -226,10 +247,12 @@ impl<'a, D: DataSource> CommandBuilder<D> {
         /// Returns (data, len of data, and is_extended)
         fn serialize_data_len(
             len: u16,
-            expected_len: u16,
+            expected_len: ExpectedLen,
             extended: ExtendedLen,
         ) -> (heapless::Vec<u8, 3>, bool) {
-            match (len, expected_len > 256, extended) {
+            let expected_is_extended =
+                matches!(expected_len, ExpectedLen::Ne(257..) | ExpectedLen::Max);
+            match (len, expected_is_extended, extended) {
                 (0, _, _) => (Default::default(), false),
                 (1..=255, false, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
                     ([len as u8].as_slice().try_into().unwrap(), false)
@@ -242,31 +265,37 @@ impl<'a, D: DataSource> CommandBuilder<D> {
         }
 
         fn serialize_expected_len(
-            len: u16,
+            len: ExpectedLen,
             lc_extended: bool,
             data_is_empty: bool,
             extended: ExtendedLen,
         ) -> heapless::Vec<u8, 3> {
             match (len, lc_extended, data_is_empty, extended) {
-                (257.., false, true, ExtendedLen::Unsupported) => {
-                    panic!("Can't have Ne > 256 without extended support")
-                }
-                (0, _, _, _) => Default::default(),
-                (1..=255, false, _, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
-                    [len as u8].as_slice().try_into().unwrap()
-                }
-                (256, false, _, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
-                    [0].as_slice().try_into().unwrap()
-                }
-                (_, true, false, _) => {
+                (ExpectedLen::Ne(0), _, _, _) => Default::default(),
+                (
+                    ExpectedLen::Ne(len @ 1..=255),
+                    false,
+                    _,
+                    ExtendedLen::Unsupported | ExtendedLen::Supported,
+                ) => [len as u8].as_slice().try_into().unwrap(),
+                (
+                    ExpectedLen::Ne(256),
+                    false,
+                    _,
+                    ExtendedLen::Unsupported | ExtendedLen::Supported,
+                ) => [0].as_slice().try_into().unwrap(),
+                (ExpectedLen::Ne(len), true, false, _) => {
                     let l = len.to_be_bytes();
                     [l[0], l[1]].as_slice().try_into().unwrap()
                 }
-                (_, false, true, _) => {
+                (ExpectedLen::Max, true, false, _) => [0, 0].as_slice().try_into().unwrap(),
+                (ExpectedLen::Ne(len), false, true, _) => {
                     let l = len.to_be_bytes();
                     [0, l[0], l[1]].as_slice().try_into().unwrap()
                 }
-                (257.., false, false, _) | (_, false, false, ExtendedLen::Forced) => {
+                (ExpectedLen::Max, false, true, _) => [0, 0, 0].as_slice().try_into().unwrap(),
+                (ExpectedLen::Ne(257..) | ExpectedLen::Max, false, false, _)
+                | (_, false, false, ExtendedLen::Forced) => {
                     unreachable!("Can't have non extended Lc and extended Le")
                 }
                 (_, true, true, _) => {
@@ -276,7 +305,7 @@ impl<'a, D: DataSource> CommandBuilder<D> {
         }
 
         let le = if self.extended_length == ExtendedLen::Unsupported {
-            self.le.min(256)
+            self.le.min(256.into())
         } else {
             self.le
         };
@@ -348,7 +377,7 @@ impl<'a, D: DataSource> CommandBuilder<D> {
 }
 
 struct BuildingHeaderData {
-    le: u16,
+    le: ExpectedLen,
     data_len: heapless::Vec<u8, 3>,
     expected_data_len: heapless::Vec<u8, 3>,
 }
@@ -364,12 +393,13 @@ impl<'a, D: PartialEq<&'a [u8]>> PartialEq<CommandView<'a>> for CommandBuilder<D
             le,
             extended_length: _,
         } = self;
+        let le: usize = (*le).into();
         class == &other.class
             && instruction == &other.instruction
             && p1 == &other.p1
             && p2 == &other.p2
             && data == &other.data
-            && *le as usize == other.le
+            && le == other.le
     }
 }
 
@@ -394,7 +424,7 @@ impl<'a> CommandBuilder<&'a [u8]> {
                 p1,
                 p2,
                 data,
-                le,
+                le: le.into(),
                 extended_length: ExtendedLen::Unsupported,
             }),
             // default to u8::max for data, 5 bytes for the header, 1 for the trailer
@@ -445,7 +475,7 @@ impl<'a> CommandBuilder<&'a [u8]> {
             p1: self.p1,
             p2: self.p2,
             data: send_now,
-            le: 0,
+            le: 0.into(),
             extended_length: self.extended_length,
         };
         let send_later = Self {
