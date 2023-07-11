@@ -1,3 +1,5 @@
+use core::ops::{BitAnd, BitOr};
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Instruction {
     Select,
@@ -52,6 +54,24 @@ impl From<Instruction> for u8 {
             Instruction::WriteBinary => 0xd0,
             Instruction::Unknown(ins) => ins,
         }
+    }
+}
+
+impl BitAnd for Instruction {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        let rhs: u8 = rhs.into();
+        let this: u8 = self.into();
+        (this & rhs).into()
+    }
+}
+
+impl BitOr for Instruction {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        let rhs: u8 = rhs.into();
+        let this: u8 = self.into();
+        (this | rhs).into()
     }
 }
 
