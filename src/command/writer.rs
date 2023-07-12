@@ -34,7 +34,7 @@ pub trait Writer {
     fn write_all(&mut self, data: &[u8]) -> Result<(), Self::Error> {
         let mut offset = 0;
         while offset < data.len() {
-            offset += self.write(data)?;
+            offset += self.write(&data[offset..])?;
         }
         Ok(())
     }
