@@ -121,7 +121,7 @@ const CORRUPTED_DATA: u16 = 0x6281;
 /// `0x6282`
 const UNEXPECTED_EOF: u16 = 0x6282;
 /// `0x6283`
-const SELECT_FILE_DEACTIVATED: u16 = 0x6283;
+const SELECTED_FILE_DEACTIVATED: u16 = 0x6283;
 /// `0x6284`
 const FILE_CONTROL_INFO_BADLY_FORMATTED: u16 = 0x6284;
 /// `0x6285`
@@ -223,7 +223,7 @@ impl Status {
             DATA_UNCHANGED_WARNING => Status::DataUnchangedWarning,
             CORRUPTED_DATA => Status::CorruptedData,
             UNEXPECTED_EOF => Status::UnexpectedEof,
-            SELECT_FILE_DEACTIVATED => Status::SelectFileDeactivated,
+            SELECTED_FILE_DEACTIVATED => Status::SelectFileDeactivated,
             FILE_CONTROL_INFO_BADLY_FORMATTED => Status::FileControlInfoBadlyFormatted,
             SELECTED_FILE_IN_TERMINATION_STATE => Status::SelectedFileInTerminationState,
             NO_INPUT_DATA_FROM_SENSOR => Status::NoInputDataFromSensor,
@@ -323,7 +323,7 @@ impl From<Status> for u16 {
             Status::DataUnchangedWarning => DATA_UNCHANGED_WARNING,
             Status::CorruptedData => CORRUPTED_DATA,
             Status::UnexpectedEof => UNEXPECTED_EOF,
-            Status::SelectFileDeactivated => SELECT_FILE_DEACTIVATED,
+            Status::SelectFileDeactivated => SELECTED_FILE_DEACTIVATED,
             Status::FileControlInfoBadlyFormatted => FILE_CONTROL_INFO_BADLY_FORMATTED,
             Status::SelectedFileInTerminationState => SELECTED_FILE_IN_TERMINATION_STATE,
             Status::NoInputDataFromSensor => NO_INPUT_DATA_FROM_SENSOR,
