@@ -74,7 +74,7 @@ mod tests {
         assert_eq!(u8::from(command.instruction()), ins);
         assert_eq!(command.p1, p1);
         assert_eq!(command.p2, p2);
-        assert!(!command.extended);
+        assert!(!command.extended());
         assert_eq!(command.data().as_slice(), &data.0);
         assert_eq!(
             command.expected(),
