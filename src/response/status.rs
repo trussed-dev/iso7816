@@ -375,31 +375,9 @@ impl Status {
             v @ _ => Self::__Unknown(v),
         }
     }
-}
 
-impl From<u16> for Status {
-    #[inline]
-    fn from(sw: u16) -> Self {
-        Self::from_u16(sw)
-    }
-}
-
-impl From<(u8, u8)> for Status {
-    fn from((sw1, sw2): (u8, u8)) -> Self {
-        [sw1, sw2].into()
-    }
-}
-
-impl From<[u8; 2]> for Status {
-    fn from(sw: [u8; 2]) -> Self {
-        u16::from_be_bytes(sw).into()
-    }
-}
-
-impl From<Status> for u16 {
-    #[inline]
-    fn from(status: Status) -> u16 {
-        match status {
+    pub const fn to_u16(&self) -> u16 {
+        match *self {
             Status::Success => SUCCESS,
 
             Status::DataUnchangedWarning => DATA_UNCHANGED_WARNING,
@@ -464,6 +442,32 @@ impl From<Status> for u16 {
             Status::RemainingRetries(v) => WARNING_COUNTER_MIN + v as u16,
             Status::__Unknown(v) => v,
         }
+    }
+}
+
+impl From<u16> for Status {
+    #[inline]
+    fn from(sw: u16) -> Self {
+        Self::from_u16(sw)
+    }
+}
+
+impl From<(u8, u8)> for Status {
+    fn from((sw1, sw2): (u8, u8)) -> Self {
+        [sw1, sw2].into()
+    }
+}
+
+impl From<[u8; 2]> for Status {
+    fn from(sw: [u8; 2]) -> Self {
+        u16::from_be_bytes(sw).into()
+    }
+}
+
+impl From<Status> for u16 {
+    #[inline]
+    fn from(status: Status) -> u16 {
+        status.to_u16()
     }
 }
 
