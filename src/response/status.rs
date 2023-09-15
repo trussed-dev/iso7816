@@ -117,22 +117,22 @@ pub enum Status {
 /// `0x9000`
 pub const SUCCESS: u16 = 0x9000;
 
-pub const MORE_AVAILABLE_LOWER: u16 = 0x6100;
-pub const MORE_AVAILABLE_UPPER: u16 = 0x61FF;
+pub const MORE_AVAILABLE_MIN: u16 = 0x6100;
+pub const MORE_AVAILABLE_MAX: u16 = 0x61FF;
 pub const MORE_AVAILABLE_MASK: u16 = 0x00FF;
 
-pub const WRONG_LE_FIELD_LOWER: u16 = 0x6C00;
-pub const WRONG_LE_FIELD_UPPER: u16 = 0x6CFF;
+pub const WRONG_LE_FIELD_MIN: u16 = 0x6C00;
+pub const WRONG_LE_FIELD_MAX: u16 = 0x6CFF;
 pub const WRONG_LE_FIELD_MASK: u16 = 0x00FF;
 
 /// `0x6200`
 pub const DATA_UNCHANGED_WARNING: u16 = 0x6200;
-pub const WARNING_TRIGGERING_LOWER: u16 = 0x6202;
+pub const WARNING_TRIGGERING_MIN: u16 = 0x6202;
 pub const WARNING_TRIGGERING_MASK: u16 = 0x00FF;
-pub const WARNING_TRIGGERING_UPPER: u16 = 0x6280;
-pub const ERROR_TRIGGERING_LOWER: u16 = 0x6402;
+pub const WARNING_TRIGGERING_MAX: u16 = 0x6280;
+pub const ERROR_TRIGGERING_MIN: u16 = 0x6402;
 pub const ERROR_TRIGGERING_MASK: u16 = 0x00FF;
-pub const ERROR_TRIGGERING_UPPER: u16 = 0x6480;
+pub const ERROR_TRIGGERING_MAX: u16 = 0x6480;
 /// `0x6281`
 pub const CORRUPTED_DATA: u16 = 0x6281;
 /// `0x6282`
@@ -155,8 +155,8 @@ pub const IMMEDIATE_RESPONSE_REQUIRED: u16 = 0x6401;
 pub const DATA_CHANGED_WARNING: u16 = 0x6300;
 /// `0x6381`
 pub const FILLED_BY_LAST_WRITE: u16 = 0x6381;
-pub const WARNING_COUNTER_LOWER: u16 = 0x63C0;
-pub const WARNING_COUNTER_UPPER: u16 = 0x63CF;
+pub const WARNING_COUNTER_MIN: u16 = 0x63C0;
+pub const WARNING_COUNTER_MAX: u16 = 0x63CF;
 pub const WARNING_COUNTER_MASK: u16 = 0x000F;
 
 /// `0x6500`
@@ -293,19 +293,19 @@ impl Status {
             INSTRUCTION_NOT_SUPPORTED_OR_INVALID => Status::InstructionNotSupportedOrInvalid,
             CLASS_NOT_SUPPORTED => Status::ClassNotSupported,
             CHECKING_ERROR => Status::UnspecifiedCheckingError,
-            v @ WARNING_TRIGGERING_LOWER..=WARNING_TRIGGERING_UPPER => {
+            v @ WARNING_TRIGGERING_MIN..=WARNING_TRIGGERING_MAX => {
                 Self::WarningTriggering((v & WARNING_TRIGGERING_MASK) as u8)
             }
-            v @ ERROR_TRIGGERING_LOWER..=ERROR_TRIGGERING_UPPER => {
+            v @ ERROR_TRIGGERING_MIN..=ERROR_TRIGGERING_MAX => {
                 Self::ErrorTriggering((v & ERROR_TRIGGERING_MASK) as u8)
             }
-            v @ MORE_AVAILABLE_LOWER..=MORE_AVAILABLE_UPPER => {
+            v @ MORE_AVAILABLE_MIN..=MORE_AVAILABLE_MAX => {
                 Self::MoreAvailable((v & MORE_AVAILABLE_MASK) as u8)
             }
-            v @ WRONG_LE_FIELD_LOWER..=WRONG_LE_FIELD_UPPER => {
+            v @ WRONG_LE_FIELD_MIN..=WRONG_LE_FIELD_MAX => {
                 Self::WrongLeField((v & WRONG_LE_FIELD_MASK) as u8)
             }
-            v @ WARNING_COUNTER_LOWER..=WARNING_COUNTER_UPPER => {
+            v @ WARNING_COUNTER_MIN..=WARNING_COUNTER_MAX => {
                 Self::RemainingRetries((v & WARNING_COUNTER_MASK) as u8)
             }
             v @ _ => Self::__Unknown(v),
@@ -393,11 +393,11 @@ impl From<Status> for u16 {
             Status::InstructionNotSupportedOrInvalid => INSTRUCTION_NOT_SUPPORTED_OR_INVALID,
             Status::ClassNotSupported => CLASS_NOT_SUPPORTED,
             Status::UnspecifiedCheckingError => CHECKING_ERROR,
-            Status::WarningTriggering(v) => WARNING_TRIGGERING_LOWER + v as u16,
-            Status::ErrorTriggering(v) => ERROR_TRIGGERING_LOWER + v as u16,
-            Status::MoreAvailable(v) => MORE_AVAILABLE_LOWER + v as u16,
-            Status::WrongLeField(v) => WRONG_LE_FIELD_LOWER + v as u16,
-            Status::RemainingRetries(v) => WARNING_COUNTER_LOWER + v as u16,
+            Status::WarningTriggering(v) => WARNING_TRIGGERING_MIN + v as u16,
+            Status::ErrorTriggering(v) => ERROR_TRIGGERING_MIN + v as u16,
+            Status::MoreAvailable(v) => MORE_AVAILABLE_MIN + v as u16,
+            Status::WrongLeField(v) => WRONG_LE_FIELD_MIN + v as u16,
+            Status::RemainingRetries(v) => WARNING_COUNTER_MIN + v as u16,
             Status::__Unknown(v) => v,
         }
     }
