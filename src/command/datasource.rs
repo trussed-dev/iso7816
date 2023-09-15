@@ -39,7 +39,7 @@ impl DataSource for [u8] {
     }
 
     fn is_empty(&self) -> bool {
-        <[u8]>::is_empty(&self)
+        <[u8]>::is_empty(self)
     }
 }
 
@@ -55,7 +55,7 @@ impl DataSource for [&dyn DataSource] {
     }
 
     fn is_empty(&self) -> bool {
-        self.iter().find(|item| !item.is_empty()).is_some()
+        self.iter().all(|item| item.is_empty())
     }
 }
 
@@ -65,7 +65,7 @@ impl<W: super::Writer> DataSource for [&dyn DataStream<W>] {
     }
 
     fn is_empty(&self) -> bool {
-        self.iter().find(|item| !item.is_empty()).is_some()
+        self.iter().all(|item| !item.is_empty())
     }
 }
 
