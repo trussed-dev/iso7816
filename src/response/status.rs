@@ -5,6 +5,22 @@ impl Default for Status {
         Status::Success
     }
 }
+
+/// Enum helping matching the SW1-SW2 bytes defined in 5.1.3
+///
+/// This enums helps matching against most status bytes.
+///
+/// Some valid status bytes values may not be supported. This enums still implements `From<u16>` through a `#[doc_hidden]` variant.
+/// This makes the following possible even though there is no variant for the `0x1234` value:
+/// ```
+/// use iso7816::Status;
+/// const CUSTOM_STATUS: Status = Status::from_u16(0x1234);
+/// let status: Status = 0x1234.into();
+/// match status {
+///     CUSTOM_STATUS => println!("Success"),
+///     _ => unreachable!(),
+/// }
+/// ```
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Status {
