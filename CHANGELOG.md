@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add a command builder API ([#13][])
+
+[#13]: https://github.com/trussed-dev/iso7816/pull/13
+
 ## [0.1.1] - 2022-08-22
 - various fixes @robin-nitrokey @sosthene-nitrokey
 
