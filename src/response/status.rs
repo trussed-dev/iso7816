@@ -24,27 +24,45 @@ impl Default for Status {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Status {
+    /// 0x900
     Success,
 
+    /// `0x6100` to `0x61FF`
     MoreAvailable(u8),
 
+    /// `0x6200`
     DataUnchangedWarning,
+
+    /// `0x6202`
+    ///
     /// Triggering by the card
     ///
     /// The count must be within `0x02..=0x80`
     WarningTriggering(u8),
+    /// `0x6281`
     CorruptedData,
+    /// `0x6282`
     UnexpectedEof,
+    /// `0x6283`
     SelectFileDeactivated,
+    /// `0x6284`
     FileControlInfoBadlyFormatted,
+    /// `0x6285`
     SelectedFileInTerminationState,
+    /// `0x6286`
     NoInputDataFromSensor,
 
+    /// `0x6300`
+    ///
     /// Data changed warning
     ///
     /// Name kept for backwards compatibility
     VerificationFailed,
+    /// `0x6381`
     FilledByLastWrite,
+
+    /// `0x63C0` to `0x63CF`
+    ///
     /// Generic Warning Counter
     ///
     /// Meaning depends on the command
@@ -52,61 +70,107 @@ pub enum Status {
     /// The count must be within `0x00..=0x0F`
     RemainingRetries(u8),
 
+    /// `0x6400`
+    ///
+    /// Execution Error
     UnspecifiedNonpersistentExecutionError,
+    /// `0x6401`
     ImmediateResponseRequired,
+
+    /// `0x6402` to `0x6480`
+    ///
     /// Triggering by the card
     ///
     /// The count must be within `0x02..=0x80`
     ErrorTriggering(u8),
 
+    /// `0x6500`
+    ///
+    /// Data Changed Error
     UnspecifiedPersistentExecutionError,
+    /// `0x6581`
     MemoryFailure,
 
+    /// `0x6700`
     WrongLength,
 
+    /// `0x6800`
     ClaNotSupported,
+    /// `0x6881`
     LogicalChannelNotSupported,
+    /// `0x6882`
     SecureMessagingNotSupported,
+    /// `0x6883`
     LastCommandOfChainExpected,
+    /// `0x6884`
     CommandChainingNotSupported,
 
+    /// `0x6900`
     CommandNotAllowed,
+    /// `0x6981`
     CommandIncompatibleFileStructure,
+    /// `0x6982`
     SecurityStatusNotSatisfied,
+    /// `0x6983`
+    ///
     /// AuthenticationMethodBlocked
     ///
     /// Name kept for backwards compatiblity
     OperationBlocked,
+    /// `0x6984`
     ReferenceDataNotUsable,
+    /// `0x6985`
     ConditionsOfUseNotSatisfied,
+    /// `0x6986`
     CommandNotAllowedNoEf,
+    /// `0x6987`
     ExectedSecureMessagingDataObjectsMissing,
+    /// `0x6988`
     IncorrectSecureMessagingDataObjects,
 
+    /// `0x6A00`
     WrongParametersNoInfo,
+    /// `0x6A80`
     IncorrectDataParameter,
+    /// `0x6A81`
     FunctionNotSupported,
+    /// `0x6A82`
+    ///
     /// FileOrAppNotFound
     ///
     /// Name kept for backwards compatibility
     NotFound,
+    /// `0x6A83`
     RecordNotFound,
+    /// `0x6A84`
     NotEnoughMemory,
+    /// `0x6A85`
     NcInconsistentWithTlv,
+    /// `0x6A86`
     IncorrectP1OrP2Parameter,
+    /// `0x6A87`
     NcInconsistentWithP1p2,
+    /// `0x6A88`
+    ///
     /// Reference not found
     ///
     /// Name kept for backwards compatibility
     KeyReferenceNotFound,
+    /// `0x6A89`
     FileAlreadyExists,
+    /// `0x6A8A`
     DfNameAlreadyExists,
 
+    /// `0x6B00`
     WrongParameters,
 
+    /// `0x6C00` to `0x6CFF`
     WrongLeField(u8),
+    /// `0x6D00`
     InstructionNotSupportedOrInvalid,
+    /// `0x6E00`
     ClassNotSupported,
+    /// `0x6F00`
     UnspecifiedCheckingError,
 
     /// Do not use outside the `From` implementation
