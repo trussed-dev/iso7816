@@ -3,6 +3,7 @@ name = "iso7816-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2021"
+license = "Apache-2.0 OR MIT"
 
 [package.metadata]
 cargo-fuzz = true
