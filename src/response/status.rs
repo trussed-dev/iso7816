@@ -109,8 +109,9 @@ pub enum Status {
     ClassNotSupported,
     UnspecifiedCheckingError,
 
+    /// Do not use outside the `From` implementation
     #[doc(hidden)]
-    Unknown(u16),
+    __Unknown(u16),
 }
 
 /// `0x9000`
@@ -307,7 +308,7 @@ impl Status {
             v @ WARNING_COUNTER_LOWER..=WARNING_COUNTER_UPPER => {
                 Self::RemainingRetries((v & WARNING_COUNTER_MASK) as u8)
             }
-            v @ _ => Self::Unknown(v),
+            v @ _ => Self::__Unknown(v),
         }
     }
 }
@@ -397,7 +398,7 @@ impl From<Status> for u16 {
             Status::MoreAvailable(v) => MORE_AVAILABLE_LOWER + v as u16,
             Status::WrongLeField(v) => WRONG_LE_FIELD_LOWER + v as u16,
             Status::RemainingRetries(v) => WARNING_COUNTER_LOWER + v as u16,
-            Status::Unknown(v) => v,
+            Status::__Unknown(v) => v,
         }
     }
 }
