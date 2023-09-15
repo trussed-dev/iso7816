@@ -1,4 +1,4 @@
-mod status;
+pub mod status;
 pub use status::Status;
 
 use crate::Data;
