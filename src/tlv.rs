@@ -92,12 +92,12 @@ impl Tag {
     }
 }
 
-pub fn get_do<'input>(tag_path: &[Tag], data: &'input [u8]) -> Option<&'input [u8]> {
+pub fn get_data_object<'input>(tag_path: &[Tag], data: &'input [u8]) -> Option<&'input [u8]> {
     let mut to_ret = data;
     let mut remainder = data;
     for tag in tag_path {
         loop {
-            let (cur_tag, cur_value, cur_remainder) = take_do(remainder)?;
+            let (cur_tag, cur_value, cur_remainder) = take_data_object(remainder)?;
             remainder = cur_remainder;
             if *tag == cur_tag {
                 to_ret = cur_value;
@@ -110,7 +110,7 @@ pub fn get_do<'input>(tag_path: &[Tag], data: &'input [u8]) -> Option<&'input [u
 }
 
 /// Returns (tag, data, remainder)
-pub fn take_do(data: &[u8]) -> Option<(Tag, &[u8], &[u8])> {
+pub fn take_data_object(data: &[u8]) -> Option<(Tag, &[u8], &[u8])> {
     let (tag, remainder) = take_tag(data)?;
     let (len, remainder) = take_len(remainder)?;
     if remainder.len() < len {
@@ -226,17 +226,17 @@ mod tests {
     #[test]
     fn dos() {
         assert_eq!(
-            get_do(&[0x02u16].map(Tag::from), &hex!("02 02 1DB9 02 02 1DB9")),
+            get_data_object(&[0x02u16].map(Tag::from), &hex!("02 02 1DB9 02 02 1DB9")),
             Some(hex!("1DB9").as_slice())
         );
         assert_eq!(
-            get_do(&[0xA6u16, 0x7F49, 0x86].map(Tag::from), &hex!("A6 26 7F49 23 86 21 04 2525252525252525252525252525252525252525252525252525252525252525")),
+            get_data_object(&[0xA6u16, 0x7F49, 0x86].map(Tag::from), &hex!("A6 26 7F49 23 86 21 04 2525252525252525252525252525252525252525252525252525252525252525")),
             Some(hex!("04 2525252525252525252525252525252525252525252525252525252525252525").as_slice())
         );
 
         // Multiple nested
         assert_eq!(
-            get_do(&[0xA6u16, 0x7F49, 0x86].map(Tag::from), &hex!("A6 2A 02 02 DEAD 7F49 23 86 21 04 2525252525252525252525252525252525252525252525252525252525252525")),
+            get_data_object(&[0xA6u16, 0x7F49, 0x86].map(Tag::from), &hex!("A6 2A 02 02 DEAD 7F49 23 86 21 04 2525252525252525252525252525252525252525252525252525252525252525")),
             Some(hex!("04 2525252525252525252525252525252525252525252525252525252525252525").as_slice())
         );
     }
