@@ -203,7 +203,7 @@ impl From<ExpectedLen> for usize {
     }
 }
 
-impl<'a, D: DataSource> CommandBuilder<D> {
+impl<D: DataSource> CommandBuilder<D> {
     /// Panics if data.len() > u16::MAX
     ///
     /// Assumes that extended length is supported
