@@ -1,11 +1,5 @@
 use crate::Data;
 
-impl Default for Status {
-    fn default() -> Self {
-        Status::Success
-    }
-}
-
 /// Enum helping matching the SW1-SW2 bytes defined in 5.1.3
 ///
 /// This enums helps matching against most status bytes.
@@ -21,10 +15,11 @@ impl Default for Status {
 ///     _ => unreachable!(),
 /// }
 /// ```
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Status {
     /// 0x900
+    #[default]
     Success,
 
     /// `0x6100` to `0x61FF`
@@ -372,7 +367,7 @@ impl Status {
             v @ WARNING_COUNTER_MIN..=WARNING_COUNTER_MAX => {
                 Self::RemainingRetries((v & WARNING_COUNTER_MASK) as u8)
             }
-            v @ _ => Self::__Unknown(v),
+            v => Self::__Unknown(v),
         }
     }
 
