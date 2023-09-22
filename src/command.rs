@@ -740,9 +740,7 @@ mod test {
             }
         }
 
-        for _ in 0..nc {
-            data.push(0);
-        }
+        data.resize(data.len() + nc, 0);
 
         if let Some(le) = le {
             if extended {

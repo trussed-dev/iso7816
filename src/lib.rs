@@ -61,7 +61,7 @@ mod tests {
         let cla = if cla == u8::MAX { 0 } else { cla };
 
         let mut command = vec![cla, ins, p1, p2];
-        if data.0.len() > 0 {
+        if !data.0.is_empty() {
             command.push(data.0.len() as u8);
             command.extend_from_slice(&data.0);
         }
