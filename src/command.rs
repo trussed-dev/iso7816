@@ -23,7 +23,7 @@ pub struct Command<const S: usize> {
     data: Data<S>,
 
     le: usize,
-    extended: bool,
+    pub extended: bool,
 }
 
 impl<const S: usize> Command<S> {
@@ -61,10 +61,6 @@ impl<const S: usize> Command<S> {
             le: self.le,
             extended: self.extended,
         }
-    }
-
-    pub fn extended(&self) -> bool {
-        self.extended
     }
 
     /// This can be use for APDU chaining to convert
@@ -111,7 +107,7 @@ pub struct CommandView<'a> {
     data: &'a [u8],
 
     le: usize,
-    extended: bool,
+    pub extended: bool,
 }
 
 impl<'a> CommandView<'a> {
@@ -129,10 +125,6 @@ impl<'a> CommandView<'a> {
 
     pub fn expected(&self) -> usize {
         self.le
-    }
-
-    pub fn extended(&self) -> bool {
-        self.extended
     }
 }
 
