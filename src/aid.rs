@@ -229,8 +229,8 @@ mod test {
     #[test]
     fn aid() {
         let piv_aid = Aid::new(&hex!("A000000308 00001000 0100"));
-        assert!(piv_aid.matches(&*PIV_AID));
-        assert!(PIV_AID.matches(&*piv_aid));
+        assert!(piv_aid.matches(&PIV_AID));
+        assert!(PIV_AID.matches(&piv_aid));
         // panics
         // let aid = Aid::new(&hex_literal::hex!("A000000308 00001000 01001232323333333333333332"));
     }
