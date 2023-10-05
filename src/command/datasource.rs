@@ -65,7 +65,7 @@ impl<W: super::Writer> DataSource for [&dyn DataStream<W>] {
     }
 
     fn is_empty(&self) -> bool {
-        self.iter().all(|item| !item.is_empty())
+        self.iter().all(|item| item.is_empty())
     }
 }
 
