@@ -567,10 +567,12 @@ impl<'a> CommandView<'a> {
             p1,
             p2,
             le,
-            data,
+            data: data_slice,
             extended,
         } = self;
-        Ok(Command {
+        // We use this way to construct the command instead of Data::from_slice as that would
+        // triple stack usage on the lpc55.
+        let mut command = Command {
             // header
             class,
             instruction,
@@ -579,9 +581,14 @@ impl<'a> CommandView<'a> {
             // maximum expected response length
             le,
             // payload
-            data: Data::from_slice(data).map_err(|_| FromSliceError::TooLong)?,
+            data: Data::new(),
             extended,
-        })
+        };
+        command
+            .data
+            .extend_from_slice(data_slice)
+            .map_err(|_| FromSliceError::TooLong)?;
+        Ok(command)
     }
 }
 
