@@ -119,7 +119,7 @@ impl<'a> CommandView<'a> {
         self.instruction
     }
 
-    pub fn data(&self) -> &[u8] {
+    pub fn data(&self) -> &'a [u8] {
         self.data
     }
 
