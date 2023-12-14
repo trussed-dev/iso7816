@@ -135,6 +135,91 @@ enum ExtendedLen {
     Forced,
 }
 
+/// Inner non-generic implementation
+fn header_data(
+    command_extended_len: ExtendedLen,
+    command_data_len: usize,
+    command_le: ExpectedLen,
+) -> BuildingHeaderData {
+    /// Returns (data, len of data, and is_extended)
+    fn serialize_data_len(
+        len: u16,
+        expected_len: ExpectedLen,
+        extended: ExtendedLen,
+    ) -> (heapless::Vec<u8, 3>, bool) {
+        let expected_is_extended =
+            matches!(expected_len, ExpectedLen::Ne(257..) | ExpectedLen::Max);
+        match (len, expected_is_extended, extended) {
+            (0, _, _) => (Default::default(), false),
+            (1..=255, false, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
+                ([len as u8].as_slice().try_into().unwrap(), false)
+            }
+            _ => {
+                let l = len.to_be_bytes();
+                ([0, l[0], l[1]].as_slice().try_into().unwrap(), true)
+            }
+        }
+    }
+
+    fn serialize_expected_len(
+        len: ExpectedLen,
+        lc_extended: bool,
+        data_is_empty: bool,
+        extended: ExtendedLen,
+    ) -> heapless::Vec<u8, 3> {
+        match (len, lc_extended, data_is_empty, extended) {
+            (ExpectedLen::Ne(0), _, _, _) => Default::default(),
+            (
+                ExpectedLen::Ne(len @ 1..=255),
+                false,
+                _,
+                ExtendedLen::Unsupported | ExtendedLen::Supported,
+            ) => [len as u8].as_slice().try_into().unwrap(),
+            (ExpectedLen::Ne(256), false, _, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
+                [0].as_slice().try_into().unwrap()
+            }
+            (ExpectedLen::Ne(len), true, false, _) => {
+                let l = len.to_be_bytes();
+                [l[0], l[1]].as_slice().try_into().unwrap()
+            }
+            (ExpectedLen::Max, true, false, _) => [0, 0].as_slice().try_into().unwrap(),
+            (ExpectedLen::Ne(len), false, true, _) => {
+                let l = len.to_be_bytes();
+                [0, l[0], l[1]].as_slice().try_into().unwrap()
+            }
+            (ExpectedLen::Max, false, true, _) => [0, 0, 0].as_slice().try_into().unwrap(),
+            (ExpectedLen::Ne(257..) | ExpectedLen::Max, false, false, _)
+            | (_, false, false, ExtendedLen::Forced) => {
+                unreachable!("Can't have non extended Lc and extended Le")
+            }
+            (_, true, true, _) => {
+                unreachable!("Can't have both no data and data extended length")
+            }
+        }
+    }
+
+    let le = if command_extended_len == ExtendedLen::Unsupported {
+        command_le.min(256.into())
+    } else {
+        command_le
+    };
+
+    // Safe to unwrap because of check in `new`
+    let (data_len, lc_extended) = serialize_data_len(
+        command_data_len.try_into().unwrap(),
+        le,
+        command_extended_len,
+    );
+
+    let expected_data_len =
+        serialize_expected_len(le, lc_extended, command_data_len == 0, command_extended_len);
+    BuildingHeaderData {
+        le,
+        data_len,
+        expected_data_len,
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CommandBuilder<D> {
     class: class::Class,
@@ -234,86 +319,7 @@ impl<D: DataSource> CommandBuilder<D> {
     }
 
     fn header_data(&self) -> BuildingHeaderData {
-        /// Returns (data, len of data, and is_extended)
-        fn serialize_data_len(
-            len: u16,
-            expected_len: ExpectedLen,
-            extended: ExtendedLen,
-        ) -> (heapless::Vec<u8, 3>, bool) {
-            let expected_is_extended =
-                matches!(expected_len, ExpectedLen::Ne(257..) | ExpectedLen::Max);
-            match (len, expected_is_extended, extended) {
-                (0, _, _) => (Default::default(), false),
-                (1..=255, false, ExtendedLen::Unsupported | ExtendedLen::Supported) => {
-                    ([len as u8].as_slice().try_into().unwrap(), false)
-                }
-                _ => {
-                    let l = len.to_be_bytes();
-                    ([0, l[0], l[1]].as_slice().try_into().unwrap(), true)
-                }
-            }
-        }
-
-        fn serialize_expected_len(
-            len: ExpectedLen,
-            lc_extended: bool,
-            data_is_empty: bool,
-            extended: ExtendedLen,
-        ) -> heapless::Vec<u8, 3> {
-            match (len, lc_extended, data_is_empty, extended) {
-                (ExpectedLen::Ne(0), _, _, _) => Default::default(),
-                (
-                    ExpectedLen::Ne(len @ 1..=255),
-                    false,
-                    _,
-                    ExtendedLen::Unsupported | ExtendedLen::Supported,
-                ) => [len as u8].as_slice().try_into().unwrap(),
-                (
-                    ExpectedLen::Ne(256),
-                    false,
-                    _,
-                    ExtendedLen::Unsupported | ExtendedLen::Supported,
-                ) => [0].as_slice().try_into().unwrap(),
-                (ExpectedLen::Ne(len), true, false, _) => {
-                    let l = len.to_be_bytes();
-                    [l[0], l[1]].as_slice().try_into().unwrap()
-                }
-                (ExpectedLen::Max, true, false, _) => [0, 0].as_slice().try_into().unwrap(),
-                (ExpectedLen::Ne(len), false, true, _) => {
-                    let l = len.to_be_bytes();
-                    [0, l[0], l[1]].as_slice().try_into().unwrap()
-                }
-                (ExpectedLen::Max, false, true, _) => [0, 0, 0].as_slice().try_into().unwrap(),
-                (ExpectedLen::Ne(257..) | ExpectedLen::Max, false, false, _)
-                | (_, false, false, ExtendedLen::Forced) => {
-                    unreachable!("Can't have non extended Lc and extended Le")
-                }
-                (_, true, true, _) => {
-                    unreachable!("Can't have both no data and data extended length")
-                }
-            }
-        }
-
-        let le = if self.extended_length == ExtendedLen::Unsupported {
-            self.le.min(256.into())
-        } else {
-            self.le
-        };
-
-        // Safe to unwrap because of check in `new`
-        let (data_len, lc_extended) = serialize_data_len(
-            self.data.len().try_into().unwrap(),
-            le,
-            self.extended_length,
-        );
-
-        let expected_data_len =
-            serialize_expected_len(le, lc_extended, self.data.is_empty(), self.extended_length);
-        BuildingHeaderData {
-            le,
-            data_len,
-            expected_data_len,
-        }
+        header_data(self.extended_length, self.data.len(), self.le)
     }
 
     /// Required length for serialization in only one command.
