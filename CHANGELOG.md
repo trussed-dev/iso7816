@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2024-10-18
+
+- CommandView: Precise lifetime of data ([#22][])
+
+[#22]: https://github.com/trussed-dev/iso7816/pull/22
+
 ## [0.1.2]
 
 - Improve `CommandView` API ([#12][])
