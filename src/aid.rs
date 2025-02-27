@@ -56,16 +56,16 @@ impl core::fmt::Debug for Aid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.len <= self.truncated_len {
             f.write_fmt(format_args!(
-                "'{} {}'",
-                hexstr!(&self.bytes[..5]),
-                hexstr!(&self.bytes[5..self.len as _])
+                "'{:X?} {:X?}'",
+                &self.bytes[..5],
+                &self.bytes[5..self.len as _]
             ))
         } else {
             f.write_fmt(format_args!(
-                "'{} {} {}'",
-                hexstr!(&self.bytes[..5]),
-                hexstr!(&self.bytes[5..self.truncated_len as _]),
-                hexstr!(&self.bytes[self.truncated_len as _..self.len as _])
+                "'{:X?} {:X?} {:X?}'",
+                &self.bytes[..5],
+                &self.bytes[5..self.truncated_len as _],
+                &self.bytes[self.truncated_len as _..self.len as _]
             ))
         }
     }
