@@ -15,6 +15,7 @@ use crate::Data;
 ///     _ => unreachable!(),
 /// }
 /// ```
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Status {

@@ -1,8 +1,10 @@
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
+#[cfg(feature = "delog")]
 #[macro_use]
 extern crate delog;
-// generate_macros!();
+#[cfg(feature = "delog")]
+generate_macros!();
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Interface {
