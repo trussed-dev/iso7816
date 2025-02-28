@@ -90,7 +90,7 @@ impl<const N: usize> IntoWriter for heapless::Vec<u8, N> {
     }
 }
 
-#[cfg(feature = "heapless_bytes")]
+#[cfg(feature = "heapless-bytes")]
 impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
     type Error = BufferFull;
     fn write(&mut self, data: &[u8]) -> Result<usize, BufferFull> {
@@ -105,7 +105,7 @@ impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
     }
 }
 
-#[cfg(feature = "heapless_bytes")]
+#[cfg(feature = "heapless-bytes")]
 impl<const N: usize> IntoWriter for heapless_bytes::Bytes<N> {
     type Writer = Self;
     fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
