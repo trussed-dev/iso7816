@@ -83,15 +83,15 @@ impl core::fmt::Debug for Aid {
     }
 }
 
-/// According to ISO 7816-4, "Application selection using AID as DF name":
-/// A multi-application card shall support the SELECT command with P1='04', P2='00' and a data field
-/// containing 5 to 16 bytes with the AID of an application that may reside on the card.
-/// The command shall complete successfully if the AID of an application the card holds matches the data field.
-///
-/// It is also specified that:
-/// In a multi-application card an application in the card shall be identified by
-///  a single AID in the proprietary, national or international category, and/or
-///  one or more AIDs in the standard category.
+// According to ISO 7816-4, "Application selection using AID as DF name":
+// A multi-application card shall support the SELECT command with P1='04', P2='00' and a data field
+// containing 5 to 16 bytes with the AID of an application that may reside on the card.
+// The command shall complete successfully if the AID of an application the card holds matches the data field.
+
+// It is also specified that:
+// In a multi-application card an application in the card shall be identified by
+//  a single AID in the proprietary, national or international category, and/or
+//  one or more AIDs in the standard category.
 
 pub trait App {
     // using an associated constant here would make the trait object unsafe

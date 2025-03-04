@@ -159,9 +159,7 @@ impl<'a> Iterator for ChainedCommandIterator<'a> {
     type Item = CommandBuilder<&'a [u8]>;
 
     fn next(&mut self) -> Option<CommandBuilder<&'a [u8]>> {
-        let Some(next) = self.command.take() else {
-            return None;
-        };
+        let next = self.command.take()?;
 
         if let Some((cur, next)) = next.should_split(self.available_len) {
             self.command = Some(next);
@@ -551,7 +549,7 @@ impl<'a> TryFrom<&'a [u8]> for CommandView<'a> {
     }
 }
 
-impl<'a> CommandView<'a> {
+impl CommandView<'_> {
     pub fn to_owned<const S: usize>(&self) -> Result<Command<S>, FromSliceError> {
         let &CommandView {
             class,
