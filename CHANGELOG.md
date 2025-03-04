@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-03-04
+
+- Add support for `defmt` ([#25][])
+- Fix heapless-byte feature flag ([#26][])
+- Improve compiled binary size ([#23][])
+
+[#26]: https://github.com/trussed-dev/iso7816/pull/26
+[#25]: https://github.com/trussed-dev/iso7816/pull/25
+[#23]: https://github.com/trussed-dev/iso7816/pull/23
+
 ## [0.1.3] - 2024-10-18
 
 - CommandView: Precise lifetime of data ([#22][])
