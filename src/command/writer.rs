@@ -40,7 +40,7 @@ pub trait Writer {
     }
 }
 
-impl<'a> Writer for &'a mut [u8] {
+impl Writer for &mut [u8] {
     type Error = BufferFull;
     fn write(&mut self, data: &[u8]) -> Result<usize, BufferFull> {
         let amt = data.len().min(self.len());
@@ -55,7 +55,7 @@ impl<'a> Writer for &'a mut [u8] {
         Ok(amt)
     }
 }
-impl<'a> IntoWriter for &'a mut [u8] {
+impl IntoWriter for &mut [u8] {
     type Writer = Self;
     fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
         if self.len() < to_write {
