@@ -30,7 +30,6 @@ pub trait Writer {
     type Error: Error;
 
     fn write(&mut self, data: &[u8]) -> Result<usize, Self::Error>;
-    /// data must be smaller than [`remaining_len`](Writer::remaining_len)
     fn write_all(&mut self, data: &[u8]) -> Result<(), Self::Error> {
         let mut offset = 0;
         while offset < data.len() {
