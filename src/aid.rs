@@ -54,15 +54,31 @@ pub enum Category {
 
 impl core::fmt::Debug for Aid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("'")?;
-        for b in &self.bytes[..5] {
-            f.write_fmt(format_args!("{:02X}", b))?;
+        if self.truncated_len >= self.len {
+            f.write_str("'")?;
+            for b in &self.bytes[..5] {
+                f.write_fmt(format_args!("{:02X}", b))?;
+            }
+            f.write_str(" ")?;
+            for b in &self.bytes[5..self.len as _] {
+                f.write_fmt(format_args!("{:02X}", b))?;
+            }
+            f.write_str("'")?;
+        } else {
+            f.write_str("'")?;
+            for b in &self.bytes[..5] {
+                f.write_fmt(format_args!("{:02X}", b))?;
+            }
+            f.write_str(" ")?;
+            for b in &self.bytes[5..self.truncated_len as _] {
+                f.write_fmt(format_args!("{:02X}", b))?;
+            }
+            f.write_str(" ")?;
+            for b in &self.bytes[self.truncated_len as _..self.len as _] {
+                f.write_fmt(format_args!("{:02X}", b))?;
+            }
+            f.write_str("'")?;
         }
-        f.write_str(" ")?;
-        for b in &self.bytes[5..self.len as _] {
-            f.write_fmt(format_args!("{:02X}", b))?;
-        }
-        f.write_str("'")?;
         Ok(())
     }
 }
@@ -229,5 +245,16 @@ mod test {
         assert!(PIV_AID.matches(&piv_aid));
         // panics
         // let aid = Aid::new(&hex_literal::hex!("A000000308 00001000 01001232323333333333333332"));
+    }
+
+    #[test]
+    fn aid_fmt() {
+        let piv_aid = Aid::new(&hex!("A000000308 00001000 0100"));
+        let piv_aid_truncatable = Aid::new_truncatable(&hex!("A000000308 00001000 0100"), 9);
+        assert_eq!(format!("{piv_aid:?}"), "'A000000308 000010000100'");
+        assert_eq!(
+            format!("{piv_aid_truncatable:?}"),
+            "'A000000308 00001000 0100'"
+        );
     }
 }
