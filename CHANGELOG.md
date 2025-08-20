@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-09-25
+
+- Update `heapless` to 0.9.1 ([#30][])
+- Update `heapless-bytes` to 0.5.0 ([#30][])
+
+[#30]: https://github.com/trussed-dev/iso7816/pull/30
+
 ## [0.1.4] - 2025-03-04
 
 - Add support for `defmt` ([#25][])
@@ -43,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - non-alpha release to bump dependees
 - add an experimental CommandView
 
-[Unreleased]: https://github.com/trussed-dev/iso7816/compare/0.1.2...HEAD
+[Unreleased]: https://github.com/trussed-dev/iso7816/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/trussed-dev/iso7816/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/trussed-dev/iso7816/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/trussed-dev/iso7816/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/trussed-dev/iso7816/releases/tag/0.1.0
