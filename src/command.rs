@@ -2,6 +2,7 @@ use crate::Data;
 
 pub mod class;
 pub mod instruction;
+use heapless::CapacityError;
 pub use instruction::Instruction;
 
 pub mod writer;
@@ -51,7 +52,7 @@ impl<const S: usize> Command<S> {
         self.le
     }
 
-    pub fn as_view(&self) -> CommandView {
+    pub fn as_view(&self) -> CommandView<'_> {
         CommandView {
             class: self.class,
             instruction: self.instruction,
@@ -70,7 +71,7 @@ impl<const S: usize> Command<S> {
     pub fn extend_from_command<const T: usize>(
         &mut self,
         command: &Command<T>,
-    ) -> core::result::Result<(), ()> {
+    ) -> core::result::Result<(), CapacityError> {
         self.extend_from_command_view(command.as_view())
     }
 
@@ -81,7 +82,7 @@ impl<const S: usize> Command<S> {
     pub fn extend_from_command_view(
         &mut self,
         command: CommandView,
-    ) -> core::result::Result<(), ()> {
+    ) -> core::result::Result<(), CapacityError> {
         // Always take the header from the last command;
         self.class = command.class();
         self.instruction = command.instruction();

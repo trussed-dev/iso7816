@@ -1,6 +1,9 @@
 use core::fmt::{Debug, Display};
 use core::mem;
 
+use heapless::vec::{VecInner, VecStorage};
+use heapless::LenType;
+
 pub trait Error: Debug + Display {
     fn failed_serialization(cause: &'static str) -> Self;
 }
@@ -65,7 +68,7 @@ impl IntoWriter for &mut [u8] {
     }
 }
 
-impl<const N: usize> Writer for heapless::Vec<u8, N> {
+impl<S: VecStorage<u8>, LenT: LenType> Writer for VecInner<u8, LenT, S> {
     type Error = BufferFull;
     fn write(&mut self, data: &[u8]) -> Result<usize, BufferFull> {
         let amt = data.len().min(self.capacity() - self.len());
