@@ -57,25 +57,25 @@ impl core::fmt::Debug for Aid {
         if self.truncated_len >= self.len {
             f.write_str("'")?;
             for b in &self.bytes[..5] {
-                f.write_fmt(format_args!("{:02X}", b))?;
+                write!(f, "{b:02X}")?;
             }
             f.write_str(" ")?;
             for b in &self.bytes[5..self.len as _] {
-                f.write_fmt(format_args!("{:02X}", b))?;
+                write!(f, "{b:02X}")?;
             }
             f.write_str("'")?;
         } else {
             f.write_str("'")?;
             for b in &self.bytes[..5] {
-                f.write_fmt(format_args!("{:02X}", b))?;
+                write!(f, "{b:02X}")?;
             }
             f.write_str(" ")?;
             for b in &self.bytes[5..self.truncated_len as _] {
-                f.write_fmt(format_args!("{:02X}", b))?;
+                write!(f, "{b:02X}")?;
             }
             f.write_str(" ")?;
             for b in &self.bytes[self.truncated_len as _..self.len as _] {
-                f.write_fmt(format_args!("{:02X}", b))?;
+                write!(f, "{b:02X}")?;
             }
             f.write_str("'")?;
         }
