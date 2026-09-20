@@ -38,7 +38,7 @@ pub struct Aid {
     truncated_len: u8,
 }
 
-#[derive(Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Category {
     /// International registration of application providers according to ISO/IEC 7816-5
     International,
@@ -167,10 +167,10 @@ impl Aid {
             truncated_len: truncated_len as u8,
         };
         s = s.fill(aid, 0);
-        if s.is_national() && aid.len() >= 5 {
+        if s.is_national() && aid.len() < 5 {
             return Err(FromSliceError::NationalRidTooShort);
         }
-        if s.is_international() && aid.len() >= 5 {
+        if s.is_international() && aid.len() < 5 {
             return Err(FromSliceError::InternationalRidTooShort);
         }
         Ok(s)
@@ -190,10 +190,10 @@ impl Aid {
 
     pub const fn category(&self) -> Category {
         match self.bytes[0] >> 4 {
-            b'A' => Category::International,
-            b'D' => Category::National,
-            b'E' => Category::Standard,
-            b'F' => Category::Proprietary,
+            0x0A => Category::International,
+            0x0D => Category::National,
+            0x0E => Category::Standard,
+            0x0F => Category::Proprietary,
             _ => Category::Other,
         }
     }
@@ -233,7 +233,7 @@ impl Aid {
 
 #[cfg(test)]
 mod test {
-    use super::Aid;
+    use super::{Aid, Category, FromSliceError};
     use hex_literal::hex;
     #[allow(dead_code)]
     const PIV_AID: Aid = Aid::new_truncatable(&hex!("A000000308 00001000 0100"), 9);
@@ -256,5 +256,61 @@ mod test {
             format!("{piv_aid_truncatable:?}"),
             "'A000000308 00001000 0100'"
         );
+    }
+
+    #[test]
+    fn aid_too_short() {
+        let result = Aid::try_new(&hex!("A0000008"));
+        assert_eq!(result, Err(FromSliceError::InternationalRidTooShort));
+        let result = Aid::try_new(&hex!("D0000008"));
+        assert_eq!(result, Err(FromSliceError::NationalRidTooShort));
+
+        // only national and internaional AIDs have a minimum length
+        Aid::try_new(&hex!("F0")).unwrap();
+        Aid::try_new(&hex!("00")).unwrap();
+        Aid::try_new(&hex!("E0")).unwrap();
+    }
+
+    #[test]
+    fn nk3_aids() {
+        // AIDs used by the NK3
+
+        // admin-app
+        let aid = Aid::try_new(&hex!("A00000084700000001")).unwrap();
+        assert_eq!(aid.category(), Category::International);
+
+        // opcard
+        let aid = Aid::try_new(&hex!("D276000124 01 0304 000F 00000000 0000")).unwrap();
+        assert_eq!(aid.category(), Category::National);
+
+        // piv-authenticator
+        let aid = Aid::try_new(&hex!("A000000308 00001000 0100")).unwrap();
+        assert_eq!(aid.category(), Category::International);
+
+        // secrets-app
+        let aid = Aid::try_new(&hex!("A000000527 2101")).unwrap();
+        assert_eq!(aid.category(), Category::International);
+    }
+
+    #[test]
+    fn known_aids() {
+        // Example AIDs are based on this list:
+        // https://www.eftlab.com/knowledge-base/complete-list-of-application-identifiers-aid
+
+        // eGK
+        let aid = Aid::try_new(&hex!("D2760001448000")).unwrap();
+        assert_eq!(aid.category(), Category::National);
+
+        // nPA
+        let aid = Aid::try_new(&hex!("E80704007F00070302")).unwrap();
+        assert_eq!(aid.category(), Category::Standard);
+
+        // Bradesco
+        let aid = Aid::try_new(&hex!("F0000000030001")).unwrap();
+        assert_eq!(aid.category(), Category::Proprietary);
+
+        // MiFare
+        let aid = Aid::try_new(&hex!("6D6966617265")).unwrap();
+        assert_eq!(aid.category(), Category::Other);
     }
 }

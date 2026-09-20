@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix `Aid::category` function. Previously, the function checked for the ASCII characters A, D, E and F instead of the byte prefix 0xA, 0xD, 0xE and 0xF, classifying almost all AIDs as `Category::Other`.
+- Fix AID validation for national and international AIDs in `Aid::new`, `Aid::new_truncatable`, `Aid::try_new` and `Aid::try_new_truncatable`. Previously, the check enforced a maximum length of 5 instead of a minimum length of 5. Due to the aforementioned bug in `Aid::category`, it did not affect national and international AIDs but only AIDs with a custom prefix.
+
 ## [0.2.0] - 2025-09-25
 
 - Update `heapless` to 0.9.1 ([#30][])
