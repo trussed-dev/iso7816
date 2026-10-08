@@ -263,6 +263,22 @@ mod test {
             format!("{piv_aid_truncatable:?}"),
             "'A000000308 00001000 0100'"
         );
+
+        // proprietary
+        let aid1 = Aid::try_new(&hex!("F0000000030001")).unwrap();
+        let aid2 = Aid::try_new_truncatable(aid1.as_bytes(), 1).unwrap();
+        let aid3 = Aid::try_new_truncatable(aid1.as_bytes(), 5).unwrap();
+        let aid4 = Aid::try_new_truncatable(aid1.as_bytes(), 6).unwrap();
+        assert_eq!(format!("{aid1:?}"), "'F0000000030001'");
+        assert_eq!(format!("{aid2:?}"), "'F0 000000030001'");
+        assert_eq!(format!("{aid3:?}"), "'F000000003 0001'");
+        assert_eq!(format!("{aid4:?}"), "'F00000000300 01'");
+
+        // short proprietary
+        let aid1 = Aid::try_new(&hex!("F000")).unwrap();
+        let aid2 = Aid::try_new_truncatable(aid2.as_bytes(), 1).unwrap();
+        assert_eq!(format!("{aid1:?}"), "'F000'");
+        assert_eq!(format!("{aid2:?}"), "'F0 00'");
     }
 
     #[test]
