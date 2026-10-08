@@ -239,7 +239,10 @@ impl Aid {
         self.is_national() || self.is_international()
     }
 
-    const fn rid_pix(&self) -> Option<(&[u8; 5], &[u8])> {
+    /// Returns the registered application provider identifier (RID, 5 bytes) and the
+    /// proprietary application identifier extension (PIX, up to 11 bytes) for international and
+    /// national AIDs.
+    pub const fn rid_pix(&self) -> Option<(&[u8; 5], &[u8])> {
         if self.has_rid_pix() {
             self.as_bytes().split_first_chunk()
         } else {
