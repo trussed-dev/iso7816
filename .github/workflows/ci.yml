@@ -22,7 +22,7 @@ jobs:
     - name: Run tests
       run: cargo t --all-features
     - name: Check clippy warnings
-      run: cargo clippy --all-features -- -Dwarnings
+      run: cargo clippy --all-features --all-targets -- -Dwarnings
     - name: Check doc warnings
       run: RUSTDOCFLAGS=-Dwarnings cargo doc --all-features
 
