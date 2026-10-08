@@ -1,4 +1,4 @@
-// use crate::{Command, Interface, Response, Result};
+use core::fmt;
 
 /// Error returned when the [Aid::try_new](Aid::try_new) or
 /// [Aid::try_new_truncatable](Aid::try_new_truncatable) fail
@@ -11,8 +11,8 @@ pub enum FromSliceError {
     InternationalRidTooShort,
 }
 
-impl core::fmt::Debug for FromSliceError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for FromSliceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Empty => "AID needs at least a category identifier",
             Self::TooLong => "AID too long",
@@ -52,33 +52,44 @@ pub enum Category {
     Other,
 }
 
-impl core::fmt::Debug for Aid {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.truncated_len >= self.len {
-            f.write_str("'")?;
-            for b in &self.bytes[..5] {
+impl fmt::Debug for Aid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn write_bytes(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
+            for b in bytes {
                 write!(f, "{b:02X}")?;
             }
-            f.write_str(" ")?;
-            for b in &self.bytes[5..self.len as _] {
-                write!(f, "{b:02X}")?;
-            }
-            f.write_str("'")?;
-        } else {
-            f.write_str("'")?;
-            for b in &self.bytes[..5] {
-                write!(f, "{b:02X}")?;
-            }
-            f.write_str(" ")?;
-            for b in &self.bytes[5..self.truncated_len as _] {
-                write!(f, "{b:02X}")?;
-            }
-            f.write_str(" ")?;
-            for b in &self.bytes[self.truncated_len as _..self.len as _] {
-                write!(f, "{b:02X}")?;
-            }
-            f.write_str("'")?;
+            Ok(())
         }
+
+        fn write_truncated_bytes(
+            f: &mut fmt::Formatter<'_>,
+            bytes: &[u8],
+            n: Option<usize>,
+        ) -> fmt::Result {
+            if let Some((head, tail)) = n.and_then(|n| bytes.split_at_checked(n)) {
+                write_bytes(f, head)?;
+                if !head.is_empty() && !tail.is_empty() {
+                    f.write_str(" ")?;
+                }
+                write_bytes(f, tail)?;
+            } else {
+                write_bytes(f, bytes)?;
+            }
+            Ok(())
+        }
+
+        let t = usize::from(self.truncated_len);
+        f.write_str("'")?;
+        if let Some((rid, pix)) = self.rid_pix() {
+            write_truncated_bytes(f, rid, Some(t))?;
+            if !pix.is_empty() {
+                f.write_str(" ")?;
+            }
+            write_truncated_bytes(f, pix, t.checked_sub(rid.len()))?;
+        } else {
+            write_truncated_bytes(f, self.as_bytes(), Some(t))?;
+        }
+        f.write_str("'")?;
         Ok(())
     }
 }
@@ -109,14 +120,15 @@ impl core::ops::Deref for Aid {
 }
 
 impl Aid {
+    const RID_LEN: usize = 5;
     const MAX_LEN: usize = 16;
 
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes[..self.len as usize]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.bytes.split_at(self.len as usize).0
     }
 
-    pub fn truncated(&self) -> &[u8] {
-        &self.bytes[..self.truncated_len as usize]
+    pub const fn truncated(&self) -> &[u8] {
+        self.bytes.split_at(self.truncated_len as usize).0
     }
 
     /// Checks whether this AID can be selected using the given AID, taking into account the
@@ -175,10 +187,10 @@ impl Aid {
             truncated_len: truncated_len as u8,
         };
         s = s.fill(aid, 0);
-        if s.is_national() && aid.len() < 5 {
+        if s.is_national() && aid.len() < Self::RID_LEN {
             return Err(FromSliceError::NationalRidTooShort);
         }
-        if s.is_international() && aid.len() < 5 {
+        if s.is_international() && aid.len() < Self::RID_LEN {
             return Err(FromSliceError::InternationalRidTooShort);
         }
         Ok(s)
@@ -225,6 +237,14 @@ impl Aid {
 
     const fn has_rid_pix(&self) -> bool {
         self.is_national() || self.is_international()
+    }
+
+    const fn rid_pix(&self) -> Option<(&[u8; 5], &[u8])> {
+        if self.has_rid_pix() {
+            self.as_bytes().split_first_chunk()
+        } else {
+            None
+        }
     }
 
     // pub fn rid(&self) -> &[u8; 5] {
@@ -276,7 +296,7 @@ mod test {
 
         // short proprietary
         let aid1 = Aid::try_new(&hex!("F000")).unwrap();
-        let aid2 = Aid::try_new_truncatable(aid2.as_bytes(), 1).unwrap();
+        let aid2 = Aid::try_new_truncatable(aid1.as_bytes(), 1).unwrap();
         assert_eq!(format!("{aid1:?}"), "'F000'");
         assert_eq!(format!("{aid2:?}"), "'F0 00'");
     }

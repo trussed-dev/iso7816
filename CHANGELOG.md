@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Fix `Aid::matches` function. Previously, the function accepted all AIDs that start with the truncated prefix of this AID, even if the suffix is different. Now it only accepts AIDs that are a prefix of this AID and have at least the required truncated length.
+- Fix panic and formatting inconsistencies in `Debug` implementation for `Aid`.
+- Make `Aid::as_bytes` and `Aid::truncated` `const`.
 
 ## [0.2.1] - 2026-09-21
 
