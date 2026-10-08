@@ -250,12 +250,12 @@ impl Aid {
     // pub fn rid(&self) -> &[u8; 5] {
     /// International or national registered application provider identifier, 5 bytes.
     pub fn rid(&self) -> Option<&[u8]> {
-        self.has_rid_pix().then(|| &self.bytes[..5])
+        self.rid_pix().map(|(rid, _)| rid.as_slice())
     }
 
     /// Proprietary application identifier extension, up to 11 bytes.
     pub fn pix(&self) -> Option<&[u8]> {
-        self.has_rid_pix().then(|| &self.bytes[5..])
+        self.rid_pix().map(|(_, pix)| pix)
     }
 }
 
