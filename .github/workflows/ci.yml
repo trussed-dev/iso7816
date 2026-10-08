@@ -25,3 +25,17 @@ jobs:
       run: cargo clippy --all-features -- -Dwarnings
     - name: Check doc warnings
       run: RUSTDOCFLAGS=-Dwarnings cargo doc --all-features
+
+  msrv:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: "1.87"
+
+    steps:
+    - uses: actions/checkout@master
+    - name: Install rust
+      run: rustup toolchain install
+    - name: Check build
+      run: |
+        cargo build
+        cargo build --all-features

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `Aid::pix` to return only the PIX. Previously, the function would not check the AID length and always return 11 bytes even if the actual PIX is shorter.
 - Make `Aid::as_bytes` and `Aid::truncated` `const`.
 - Add `Aid::rid_pix` function to combine `Aid::rid` and `Aid::pix`.
+- Document MSRV 1.87.
 
 ## [0.2.1] - 2026-09-21
 

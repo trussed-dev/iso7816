@@ -7,8 +7,7 @@ repository = "https://github.com/trussed-dev/iso7816"
 description = "Types for ISO 7816"
 license = "Apache-2.0 OR MIT"
 documentation = "https://docs.rs/iso7816"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+rust-version = "1.87"
 
 [dependencies]
 defmt = { version = "0.3", optional = true }
