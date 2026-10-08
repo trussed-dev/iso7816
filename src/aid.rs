@@ -387,4 +387,39 @@ mod test {
         assert!(!aid.matches(&bad_aid1));
         assert!(!aid.matches(bad_aid2));
     }
+
+    #[test]
+    fn rid_pix() {
+        // international
+        let bytes = hex!("A000000308000010000100").as_slice();
+        let aid = Aid::try_new(bytes).unwrap();
+        assert_eq!(
+            aid.rid_pix(),
+            Some((bytes[..5].try_into().unwrap(), &bytes[5..]))
+        );
+        assert_eq!(aid.rid(), Some(&bytes[..5]));
+        assert_eq!(aid.pix(), Some(&bytes[5..]));
+
+        // national
+        let bytes = hex!("D2760001448000").as_slice();
+        let aid = Aid::try_new(bytes).unwrap();
+        assert_eq!(
+            aid.rid_pix(),
+            Some((bytes[..5].try_into().unwrap(), &bytes[5..]))
+        );
+        assert_eq!(aid.rid(), Some(&bytes[..5]));
+        assert_eq!(aid.pix(), Some(&bytes[5..]));
+
+        // proprietary
+        let aid = Aid::try_new(&hex!("F0000000030001")).unwrap();
+        assert_eq!(aid.rid_pix(), None);
+        assert_eq!(aid.rid(), None);
+        assert_eq!(aid.pix(), None);
+
+        // other
+        let aid = Aid::try_new(&hex!("6D6966617265")).unwrap();
+        assert_eq!(aid.rid_pix(), None);
+        assert_eq!(aid.rid(), None);
+        assert_eq!(aid.pix(), None);
+    }
 }
