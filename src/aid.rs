@@ -119,8 +119,16 @@ impl Aid {
         &self.bytes[..self.truncated_len as usize]
     }
 
+    /// Checks whether this AID can be selected using the given AID, taking into account the
+    /// configured truncated length.
+    ///
+    /// This function returns true if the given AID is a prefix of this AID and its length is at
+    /// least the configured truncated length.
     pub fn matches(&self, aid: &[u8]) -> bool {
-        aid.starts_with(self.truncated())
+        if aid.len() < usize::from(self.truncated_len) {
+            return false;
+        }
+        self.as_bytes().starts_with(aid)
     }
 
     /// Create an Aid
