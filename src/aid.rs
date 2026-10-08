@@ -181,12 +181,15 @@ impl Aid {
         } else if truncated_len > aid.len() {
             return Err(FromSliceError::TruncatedLengthLargerThanLength);
         }
-        let mut s = Self {
-            bytes: [0u8; Self::MAX_LEN],
+
+        let mut bytes = [0; Self::MAX_LEN];
+        bytes.split_at_mut(aid.len()).0.copy_from_slice(aid);
+
+        let s = Self {
+            bytes,
             len: aid.len() as u8,
             truncated_len: truncated_len as u8,
         };
-        s = s.fill(aid, 0);
         if s.is_national() && aid.len() < Self::RID_LEN {
             return Err(FromSliceError::NationalRidTooShort);
         }
@@ -194,18 +197,6 @@ impl Aid {
             return Err(FromSliceError::InternationalRidTooShort);
         }
         Ok(s)
-    }
-
-    // workaround to copy in the aid while remaining "const"
-    // maybe there is a better way?
-    const fn fill(mut self, bytes: &[u8], i: usize) -> Self {
-        match i == bytes.len() {
-            true => self,
-            false => {
-                self.bytes[i] = bytes[i];
-                self.fill(bytes, i + 1)
-            }
-        }
     }
 
     pub const fn category(&self) -> Category {
@@ -217,6 +208,7 @@ impl Aid {
             _ => Category::Other,
         }
     }
+
     pub const fn is_international(&self) -> bool {
         // This is not "const" yet.
         // self.category() == Category::International
