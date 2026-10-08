@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-08
+
 - Fix `Aid::matches` function. Previously, the function accepted all AIDs that start with the truncated prefix of this AID, even if the suffix is different. Now it only accepts AIDs that are a prefix of this AID and have at least the required truncated length.
 - Fix panic and formatting inconsistencies in `Debug` implementation for `Aid`.
 - Fix `Aid::pix` to return only the PIX. Previously, the function would not check the AID length and always return 11 bytes even if the actual PIX is shorter.
@@ -62,7 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - non-alpha release to bump dependees
 - add an experimental CommandView
 
-[Unreleased]: https://github.com/trussed-dev/iso7816/compare/0.2.1...HEAD
+[Unreleased]: https://github.com/trussed-dev/iso7816/compare/0.2.2...HEAD
+[0.2.2]: https://github.com/trussed-dev/iso7816/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/trussed-dev/iso7816/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/trussed-dev/iso7816/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/trussed-dev/iso7816/compare/0.1.1...0.1.2
