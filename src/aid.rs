@@ -235,7 +235,6 @@ impl Aid {
 mod test {
     use super::{Aid, Category, FromSliceError};
     use hex_literal::hex;
-    #[allow(dead_code)]
     const PIV_AID: Aid = Aid::new_truncatable(&hex!("A000000308 00001000 0100"), 9);
 
     #[test]
@@ -312,5 +311,36 @@ mod test {
         // MiFare
         let aid = Aid::try_new(&hex!("6D6966617265")).unwrap();
         assert_eq!(aid.category(), Category::Other);
+    }
+
+    #[test]
+    fn aid_matches() {
+        let piv_rid = hex!("A000000308").as_slice();
+        let piv_pix = hex!("000010000100").as_slice();
+        let piv_aid: Vec<_> = [piv_rid, piv_pix].concat();
+
+        let partial_rid = &piv_rid[..piv_rid.len() - 1];
+        let partial_aid = &piv_aid[..piv_aid.len() - 1];
+
+        let mut bad_aid1 = partial_aid.to_owned();
+        bad_aid1.push(0xff);
+
+        let bad_aid2 = hex!("D2760001448000").as_slice();
+
+        let aid = Aid::try_new_truncatable(&piv_aid, piv_rid.len()).unwrap();
+        assert!(!aid.matches(partial_rid));
+        assert!(aid.matches(piv_rid));
+        assert!(aid.matches(partial_aid));
+        assert!(aid.matches(&piv_aid));
+        assert!(!aid.matches(&bad_aid1));
+        assert!(!aid.matches(bad_aid2));
+
+        let aid = Aid::try_new(&piv_aid).unwrap();
+        assert!(!aid.matches(partial_rid));
+        assert!(!aid.matches(piv_rid));
+        assert!(!aid.matches(partial_aid));
+        assert!(aid.matches(&piv_aid));
+        assert!(!aid.matches(&bad_aid1));
+        assert!(!aid.matches(bad_aid2));
     }
 }
