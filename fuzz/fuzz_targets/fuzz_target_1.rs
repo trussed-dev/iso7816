@@ -111,7 +111,7 @@ fuzz_target!(|data: Input| {
             cmd.serialize_into(&mut buffer).unwrap();
             let view = CommandView::try_from(&*buffer).unwrap();
             assert!(view.data().len() <= 256);
-            assert!(!view.extended());
+            assert!(!view.extended);
             // Without extended support, le is truncated to 256 at max, and the response will come with command chaining
             assert_eq!(view, reference_command);
 
@@ -143,7 +143,10 @@ fuzz_target!(|data: Input| {
                     };
 
                     let Some((left, rem)) = remaining_command.should_split(buf_len) else {
-                        remaining_command.clone().serialize_into(&mut buffer).unwrap();
+                        remaining_command
+                            .clone()
+                            .serialize_into(&mut buffer)
+                            .unwrap();
 
                         let view = CommandView::try_from(&*buffer).unwrap();
                         assert_eq!(view, remaining_command);
