@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Bump MSRV to 1.88.
+
 ## [0.2.2] - 2026-10-08
 
 - Fix `Aid::matches` function. Previously, the function accepted all AIDs that start with the truncated prefix of this AID, even if the suffix is different. Now it only accepts AIDs that are a prefix of this AID and have at least the required truncated length.
