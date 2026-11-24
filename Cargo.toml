@@ -20,5 +20,6 @@ defmt = ["dep:defmt"]
 
 [dev-dependencies]
 hex-literal = "0.3.1"
+proptest = "1.11.0"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"

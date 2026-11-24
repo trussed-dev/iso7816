@@ -69,7 +69,7 @@ impl Tag {
                 heapless::Vec::try_from([b3].as_slice()).unwrap()
             } else {
                 debug_assert_eq!(
-                    b3 & 0b11111,
+                    b2 & 0b11111,
                     0b11111,
                     "Invalid encoding for first byte of tag"
                 );
@@ -86,7 +86,7 @@ impl Tag {
                 "Invalid encoding for first byte of tag"
             );
             debug_assert!(b2 > 0x80);
-            debug_assert!((0x00..0x7F).contains(&b3));
+            debug_assert!((0x00..=0x7F).contains(&b3));
             heapless::Vec::try_from([b1, b2, b3].as_slice()).unwrap()
         }
     }
@@ -128,17 +128,14 @@ pub fn take_tag(data: &[u8]) -> Option<(Tag, &[u8])> {
     let b1 = *data.first()?;
     if (b1 & 0x1f) == 0x1f {
         let b2 = *data.get(1)?;
-        if (0x00..0x1E).contains(&b2) || b2 == 0x80 {
-            return None;
-        }
-
-        if (0x81..0xFF).contains(&b2) {
+        if b2 & 0x80 == 0x80 {
+            // three bytes
             let b3 = *data.get(2)?;
-            if (0x81..0xFF).contains(&b3) {
-                return None;
+            if b3 & 0x80 == 0x80 {
+                None
+            } else {
+                Some((Tag([b1, b2, b3]), &data[3..]))
             }
-
-            Some((Tag([b1, b2, b3]), &data[3..]))
         } else {
             Some((Tag([0, b1, b2]), &data[2..]))
         }
@@ -181,6 +178,7 @@ fn serialize_len(len: usize) -> Option<heapless::Vec<u8, 3>> {
     Some(buf)
 }
 
+#[derive(Debug)]
 pub struct Tlv<S> {
     tag: Tag,
     data: S,
@@ -220,8 +218,11 @@ impl<W: Writer, S: DataStream<W>> DataStream<W> for Tlv<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use hex_literal::hex;
+    use proptest::prelude::*;
 
     #[test]
     fn dos() {
@@ -239,6 +240,12 @@ mod tests {
             get_data_object(&[0xA6u16, 0x7F49, 0x86].map(Tag::from), &hex!("A6 2A 02 02 DEAD 7F49 23 86 21 04 2525252525252525252525252525252525252525252525252525252525252525")),
             Some(hex!("04 2525252525252525252525252525252525252525252525252525252525252525").as_slice())
         );
+
+        // Multiple nested
+        assert_eq!(
+            get_data_object(&[1u16, 2].map(Tag::from), &hex!("01 04 01 00 02 00")),
+            Some(hex!("").as_slice())
+        );
     }
 
     #[test]
@@ -249,4 +256,96 @@ mod tests {
             .unwrap();
         assert_eq!(buf.as_slice(), &hex!("41 02 012A"))
     }
+
+    #[derive(Debug)]
+    enum TlvProp {
+        Leaf(Vec<u8>),
+        Node(Vec<Tlv<Self>>),
+    }
+
+    impl DataSource for TlvProp {
+        fn len(&self) -> usize {
+            match self {
+                Self::Leaf(v) => v.len(),
+                Self::Node(v) => DataSource::len(&**v),
+            }
+        }
+    }
+
+    impl<W: Writer> DataStream<W> for TlvProp {
+        fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
+            match self {
+                Self::Leaf(v) => writer.write_all(v),
+                Self::Node(t) => t.iter().try_for_each(|inner| inner.to_writer(writer)),
+            }
+        }
+    }
+
+    fn valid_tlv_tag() -> impl Strategy<Value = Tag> {
+        (0..=0b11u8, any::<bool>(), 1..=16383u16).prop_filter_map(
+            "invalid bytes",
+            |(class, constructed, value)| {
+                let [_, b2] = value.to_be_bytes();
+                let class = class << 6;
+                let constructed = (constructed as u8) << 5;
+                let long = 0b11111;
+                if value < 31 {
+                    return Some(Tag::from_u8(class | constructed | b2));
+                }
+
+                if value < 128 {
+                    return Some(Tag::from_2([class | constructed | long, b2]));
+                }
+
+                Some(Tag::from_3([
+                    class | constructed | long,
+                    0b10000000 | ((value & 0b11111111111111) >> 7) as u8,
+                    (value & 0b01111111) as u8,
+                ]))
+            },
+        )
+    }
+
+    fn tlv_strat() -> impl Strategy<Value = TlvProp> {
+        let leaf = any::<Vec<u8>>().prop_map(TlvProp::Leaf);
+        leaf.prop_recursive(3, 20, 3, |inner| {
+            prop::collection::vec(
+                (valid_tlv_tag(), inner).prop_map(|(tag, data)| Tlv { tag, data }),
+                0..10,
+            )
+            .prop_filter("Duplicate tag", |v| {
+                let tags: BTreeSet<_> = v.iter().map(|v| v.tag).collect();
+                tags.len() == v.len()
+            })
+            .prop_map(TlvProp::Node)
+        })
+    }
+
+    proptest!(
+        #[test]
+        fn tlv_round_trip(tlv in tlv_strat()) {
+            let len = tlv.len();
+            let mut buffer = vec![0u8;len];
+            let mut writer= &mut *buffer;
+            tlv.to_writer(&mut writer).unwrap();
+            assert_eq!(writer.len(),0);
+
+
+            println!("=====");
+            fn recursive_tag_fetch(buffer: &[u8], acc: &mut Vec<Tag>, node: &TlvProp) {
+                println!("{buffer:02x?}, {acc:02x?} {node:?}");
+                match node {
+                    TlvProp::Leaf(v) if acc.is_empty() => {},
+                    TlvProp::Leaf(v) => assert_eq!(get_data_object(acc, buffer), Some(&**v), "{buffer:02x?} {acc:02x?} {v:02x?}"),
+                    TlvProp::Node(tlv) => for inner  in tlv {
+                        // recursive_tag_fetch(get_data_object(acc, buffer).unwrap(), acc,inner);
+                        acc.push(inner.tag);
+                        recursive_tag_fetch(buffer, acc, &inner.data);
+                        acc.pop();
+                    }
+                }
+            }
+            recursive_tag_fetch(&buffer, &mut Vec::new(), &tlv);
+        }
+    );
 }
