@@ -381,6 +381,10 @@ mod test {
         assert!(aid.matches(&piv_aid));
         assert!(!aid.matches(&bad_aid1));
         assert!(!aid.matches(bad_aid2));
+
+        // piv
+        let aid = Aid::new_truncatable(&hex!("A000000308 00001000 0100"), 9);
+        assert!(aid.matches(&hex!("A000000308000010000100")));
     }
 
     #[test]

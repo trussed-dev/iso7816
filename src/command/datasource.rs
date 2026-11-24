@@ -49,9 +49,9 @@ impl<W: super::Writer> DataStream<W> for [u8] {
     }
 }
 
-impl DataSource for [&dyn DataSource] {
+impl<D: DataSource> DataSource for [D] {
     fn len(&self) -> usize {
-        self.iter().map(|item| item.len()).sum()
+        self.iter().map(|v| v.len()).sum()
     }
 
     fn is_empty(&self) -> bool {
@@ -59,17 +59,7 @@ impl DataSource for [&dyn DataSource] {
     }
 }
 
-impl<W: super::Writer> DataSource for [&dyn DataStream<W>] {
-    fn len(&self) -> usize {
-        self.iter().map(|item| item.len()).sum()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.iter().all(|item| item.is_empty())
-    }
-}
-
-impl<W: super::Writer> DataStream<W> for [&dyn DataStream<W>] {
+impl<W: super::Writer, D: DataStream<W>> DataStream<W> for [D] {
     fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
         for item in self {
             item.to_writer(writer)?;
