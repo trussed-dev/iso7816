@@ -349,7 +349,7 @@ impl<D: DataSource> CommandBuilder<D> {
 
     /// This assumes that the writer has enough space to encode the APDU.
     /// If that might not be the case, first use [`should_split`](Self::should_split)
-    pub fn serialize_into<W: Writer>(&self, writer: &mut W) -> Result<(), W::Error>
+    pub fn serialize_into<W: Writer + ?Sized>(&self, writer: &mut W) -> Result<(), W::Error>
     where
         D: DataStream<W>,
     {
@@ -498,7 +498,7 @@ impl<D: DataSource> DataSource for CommandBuilder<D> {
     }
 }
 
-impl<W: Writer, D: DataStream<W>> DataStream<W> for CommandBuilder<D> {
+impl<W: Writer + ?Sized, D: DataStream<W>> DataStream<W> for CommandBuilder<D> {
     fn to_writer(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
         self.serialize_into(writer)
     }

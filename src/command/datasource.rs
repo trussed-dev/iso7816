@@ -10,7 +10,7 @@ pub trait DataSource {
 /// Datasource for APDU serialization
 ///
 /// W is a type parameter of the trait and not the method to make the trait dyn-safe
-pub trait DataStream<W: super::Writer>: DataSource {
+pub trait DataStream<W: super::Writer + ?Sized>: DataSource {
     /// Serialize the data to a writer.
     ///
     /// The length of the data serialized to the writer must not exceed the value returned by `len`.
@@ -27,7 +27,7 @@ impl<const N: usize> DataSource for [u8; N] {
     }
 }
 
-impl<W: super::Writer, const N: usize> DataStream<W> for [u8; N] {
+impl<W: super::Writer + ?Sized, const N: usize> DataStream<W> for [u8; N] {
     fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
         writer.write_all(self)
     }
@@ -43,7 +43,7 @@ impl DataSource for [u8] {
     }
 }
 
-impl<W: super::Writer> DataStream<W> for [u8] {
+impl<W: super::Writer + ?Sized> DataStream<W> for [u8] {
     fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
         writer.write_all(self)
     }
@@ -59,7 +59,7 @@ impl<D: DataSource> DataSource for [D] {
     }
 }
 
-impl<W: super::Writer, D: DataStream<W>> DataStream<W> for [D] {
+impl<W: super::Writer + ?Sized, D: DataStream<W>> DataStream<W> for [D] {
     fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
         for item in self {
             item.to_writer(writer)?;
@@ -77,7 +77,7 @@ impl<I: DataSource> DataSource for Option<I> {
     }
 }
 
-impl<W: super::Writer, I: DataStream<W>> DataStream<W> for Option<I> {
+impl<W: super::Writer + ?Sized, I: DataStream<W>> DataStream<W> for Option<I> {
     fn to_writer(&self, writer: &mut W) -> Result<(), <W as super::Writer>::Error> {
         if let Some(inner) = self {
             inner.to_writer(writer)
@@ -97,7 +97,7 @@ impl DataSource for () {
     }
 }
 
-impl<W: super::Writer> DataStream<W> for () {
+impl<W: super::Writer + ?Sized> DataStream<W> for () {
     fn to_writer(&self, _writer: &mut W) -> Result<(), <W as super::Writer>::Error> {
         Ok(())
     }
@@ -113,7 +113,7 @@ impl<T: DataSource + ?Sized> DataSource for &T {
     }
 }
 
-impl<W: super::Writer, T: DataStream<W> + ?Sized> DataStream<W> for &T {
+impl<W: super::Writer + ?Sized, T: DataStream<W> + ?Sized> DataStream<W> for &T {
     fn to_writer(&self, writer: &mut W) -> Result<(), <W as super::Writer>::Error> {
         T::to_writer(&**self, writer)
     }
@@ -138,7 +138,7 @@ mod tuple_impls {
                     true $( && $t.is_empty())+
                 }
             }
-            impl<W: crate::command::Writer, $($t: DataStream<W>),+> DataStream<W> for ($($t),+) {
+            impl<W: crate::command::Writer + ?Sized, $($t: DataStream<W>),+> DataStream<W> for ($($t),+) {
                 fn to_writer(&self, writer: &mut W) -> Result<(), <W as crate::command::Writer>::Error> {
                     #[allow(non_snake_case)]
                     let ($($t),+) = self;
