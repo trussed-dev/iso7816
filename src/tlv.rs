@@ -207,7 +207,7 @@ impl<S: DataSource> DataSource for Tlv<S> {
     }
 }
 
-impl<W: Writer, S: DataStream<W>> DataStream<W> for Tlv<S> {
+impl<W: Writer + ?Sized, S: DataStream<W>> DataStream<W> for Tlv<S> {
     fn to_writer(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
         writer.write_all(&self.tag.serialize())?;
         writer.write_all(
@@ -305,7 +305,7 @@ mod tests {
         }
     }
 
-    impl<W: Writer> DataStream<W> for TlvProp {
+    impl<W: Writer + ?Sized> DataStream<W> for TlvProp {
         fn to_writer(&self, writer: &mut W) -> Result<(), W::Error> {
             match self {
                 Self::Leaf(v) => writer.write_all(v),
