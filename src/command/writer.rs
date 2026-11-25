@@ -57,6 +57,14 @@ impl Writer for &mut [u8] {
         Ok(amt)
     }
 }
+
+impl<W: Writer + ?Sized> Writer for &mut W {
+    type Error = W::Error;
+    fn write(&mut self, data: &[u8]) -> Result<usize, Self::Error> {
+        W::write(self, data)
+    }
+}
+
 impl IntoWriter for &mut [u8] {
     type Writer = Self;
     fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
