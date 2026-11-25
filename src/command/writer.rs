@@ -68,7 +68,7 @@ impl IntoWriter for &mut [u8] {
     }
 }
 
-impl<S: VecStorage<u8>, LenT: LenType> Writer for VecInner<u8, LenT, S> {
+impl<S: VecStorage<u8> + ?Sized, LenT: LenType> Writer for VecInner<u8, LenT, S> {
     type Error = BufferFull;
     fn write(&mut self, data: &[u8]) -> Result<usize, BufferFull> {
         let amt = data.len().min(self.capacity() - self.len());
@@ -154,4 +154,43 @@ impl IntoWriter for Vec<u8> {
 pub trait IntoWriter {
     type Writer: Writer;
     fn into_writer(self, to_write: usize) -> Result<Self::Writer, <Self::Writer as Writer>::Error>;
+}
+
+#[cfg(test)]
+mod tests {
+    use hex_literal::hex;
+
+    use crate::command::DataStream;
+
+    #[test]
+    fn heapless_vec() {
+        let data = hex!("010203");
+        let vec: &mut heapless::Vec<u8, 5> = &mut heapless::Vec::new();
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &hex!("010203 0102"));
+        vec.clear();
+        let data = hex!("0102030405");
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &data);
+    }
+
+    #[test]
+    fn heapless_vecview() {
+        let data = hex!("010203");
+        let vec: &mut heapless::VecView<u8> = &mut heapless::Vec::<u8, 5>::new();
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &hex!("010203 0102"));
+        vec.clear();
+        let data = hex!("0102030405");
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &data);
+    }
 }
