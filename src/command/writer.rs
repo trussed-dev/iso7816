@@ -81,7 +81,7 @@ impl<S: VecStorage<u8> + ?Sized, LenT: LenType> Writer for VecInner<u8, LenT, S>
         Ok(amt)
     }
 }
-impl<const N: usize> IntoWriter for heapless::Vec<u8, N> {
+impl<LenT: LenType, const N: usize> IntoWriter for heapless::Vec<u8, N, LenT> {
     type Writer = Self;
     fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
         if N - self.len() < to_write {
@@ -93,7 +93,9 @@ impl<const N: usize> IntoWriter for heapless::Vec<u8, N> {
 }
 
 #[cfg(feature = "heapless-bytes")]
-impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
+impl<S: heapless_bytes::BytesStorage + ?Sized, LenT: LenType> Writer
+    for heapless_bytes::BytesInner<LenT, S>
+{
     type Error = BufferFull;
     fn write(&mut self, data: &[u8]) -> Result<usize, BufferFull> {
         let amt = data.len().min(self.capacity() - self.len());
@@ -108,7 +110,7 @@ impl<const N: usize> Writer for heapless_bytes::Bytes<N> {
 }
 
 #[cfg(feature = "heapless-bytes")]
-impl<const N: usize> IntoWriter for heapless_bytes::Bytes<N> {
+impl<LenT: LenType, const N: usize> IntoWriter for heapless_bytes::Bytes<N, LenT> {
     type Writer = Self;
     fn into_writer(self, to_write: usize) -> Result<Self, BufferFull> {
         if N - self.len() < to_write {
@@ -182,6 +184,40 @@ mod tests {
     fn heapless_vecview() {
         let data = hex!("010203");
         let vec: &mut heapless::VecView<u8> = &mut heapless::Vec::<u8, 5>::new();
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &hex!("010203 0102"));
+        vec.clear();
+        let data = hex!("0102030405");
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &data);
+    }
+
+    #[cfg(feature = "heapless-bytes")]
+    #[test]
+    fn heapless_bytes() {
+        let data = hex!("010203");
+        let vec: &mut heapless_bytes::Bytes<5> = &mut heapless_bytes::Bytes::new();
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &hex!("010203 0102"));
+        vec.clear();
+        let data = hex!("0102030405");
+        data.to_writer(vec).unwrap();
+        assert_eq!(vec, &data);
+        data.to_writer(vec).unwrap_err();
+        assert_eq!(vec, &data);
+    }
+
+    #[cfg(feature = "heapless-bytes")]
+    #[test]
+    fn heapless_bytesview() {
+        let data = hex!("010203");
+        let vec: &mut heapless_bytes::BytesView = &mut heapless_bytes::Bytes::<5>::new();
         data.to_writer(vec).unwrap();
         assert_eq!(vec, &data);
         data.to_writer(vec).unwrap_err();
