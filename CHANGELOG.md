@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Implement `Writer` for `&mut impl Writer`.
+- Relax `?Sized` bounds so that `Writer` is implemented for more types.
 - Bump MSRV to 1.88.
 
 ## [0.2.2] - 2026-10-08
