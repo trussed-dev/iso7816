@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Bump MSRV to 1.88.
+- Add `tlv::Tag::as_slice` to serialize to a slice, not a vec.
 
 ## [0.2.2] - 2026-10-08
 

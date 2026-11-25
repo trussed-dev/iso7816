@@ -61,34 +61,37 @@ impl From<[u8; 3]> for Tag {
 }
 
 impl Tag {
-    pub fn serialize(&self) -> heapless::Vec<u8, 3> {
+    pub const fn as_slice(&self) -> &[u8] {
         let [b1, b2, b3] = self.0;
         if b1 == 0 {
             if b2 == 0 {
-                debug_assert_ne!(b3 & 0b11111, 0b11111, "Invalid encoding for 1 byte tag");
-                heapless::Vec::try_from([b3].as_slice()).unwrap()
+                debug_assert!(b3 & 0b11111 != 0b11111, "Invalid encoding for 1 byte tag");
+                // indexing with a range is not yet `const`
+                self.0.split_at(2).1
             } else {
-                debug_assert_eq!(
-                    b2 & 0b11111,
-                    0b11111,
+                debug_assert!(
+                    b2 & 0b11111 == 0b11111,
                     "Invalid encoding for first byte of tag"
                 );
                 debug_assert!(
-                    (0x1F..=0x7F).contains(&b3),
+                    0x1F <= b3 && b3 <= 0x7F,
                     "Invalid encoding for first byte of tag"
                 );
-                heapless::Vec::try_from([b2, b3].as_slice()).unwrap()
+                self.0.split_at(1).1
             }
         } else {
-            debug_assert_eq!(
-                b1 & 0b11111,
-                0b11111,
+            debug_assert!(
+                b1 & 0b11111 == 0b11111,
                 "Invalid encoding for first byte of tag"
             );
             debug_assert!(b2 > 0x80);
-            debug_assert!((0x00..=0x7F).contains(&b3));
-            heapless::Vec::try_from([b1, b2, b3].as_slice()).unwrap()
+            debug_assert!(b3 <= 0x7F);
+            &self.0
         }
+    }
+
+    pub fn serialize(&self) -> heapless::Vec<u8, 3> {
+        heapless::Vec::try_from(self.as_slice()).unwrap()
     }
 }
 
@@ -249,6 +252,36 @@ mod tests {
     }
 
     #[test]
+    fn tag_serialize() {
+        let values = [
+            (0xA6, hex!("A6").as_slice()),
+            (0x7F49, &hex!("7F49")),
+            (0x86, &hex!("86")),
+            (0x4D, &hex!("4D")),
+            (0x7F48, &hex!("7F48")),
+            (0x5F48, &hex!("5F48")),
+            (0x60, &hex!("60")),
+            (0x5C, &hex!("5C")),
+            (0xA4, &hex!("A4")),
+            (0xB6, &hex!("B6")),
+            (0x007C, &hex!("7C")),
+            (0x80, &hex!("80")),
+            (0x81, &hex!("81")),
+            (0x82, &hex!("82")),
+            (0x85, &hex!("85")),
+            (0xAC, &hex!("AC")),
+            (0x01, &hex!("01")),
+            (0x02, &hex!("02")),
+            (0x03, &hex!("03")),
+        ];
+
+        for (tag, serialized) in values {
+            assert_eq!(Tag::from_u16(tag).serialize(), serialized);
+            assert_eq!(Tag::from_u16(tag).as_slice(), serialized);
+        }
+    }
+
+    #[test]
     fn tlv() {
         let mut buf = [0u8; 4];
         Tlv::new(Tag::from_u8(0x41), hex!("012A"))
@@ -338,8 +371,8 @@ mod tests {
                     TlvProp::Leaf(v) if acc.is_empty() => {},
                     TlvProp::Leaf(v) => assert_eq!(get_data_object(acc, buffer), Some(&**v), "{buffer:02x?} {acc:02x?} {v:02x?}"),
                     TlvProp::Node(tlv) => for inner  in tlv {
-                        // recursive_tag_fetch(get_data_object(acc, buffer).unwrap(), acc,inner);
                         acc.push(inner.tag);
+                        recursive_tag_fetch(get_data_object(acc, buffer).unwrap(), &mut Vec::new(), &inner.data);
                         recursive_tag_fetch(buffer, acc, &inner.data);
                         acc.pop();
                     }
